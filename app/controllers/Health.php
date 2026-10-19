@@ -12,7 +12,7 @@ class Health extends Controller
             $dsn = 'mysql:host=' . getenv('DB_HOST') . ';port=' . (getenv('DB_PORT') ?: 3306)
                  . ';dbname=' . getenv('DB_NAME');
             $options = [PDO::ATTR_TIMEOUT => 3, PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
-            // Aiven needs SSL; same switch as database.php (DB_SSL_CA empty locally)
+            // Aiven needs SSL; same switch as Database.php (DB_SSL_CA empty locally)
             if (getenv('DB_SSL_CA')) {
                 $name = defined('Pdo\\Mysql::ATTR_SSL_CA') ? 'Pdo\\Mysql::ATTR_SSL_CA' : 'PDO::MYSQL_ATTR_SSL_CA';
                 $options[constant($name)] = getenv('DB_SSL_CA');
@@ -21,7 +21,12 @@ class Health extends Controller
             $pdo->query('SELECT 1');   // needs no table
             $db = 'up';
         } catch (Throwable $e) {
-            // Never print $e: it can contain host names or credentials.
+            // TEMPORARY diagnosis: log codes only (no message, no host, no password).
+            // Remove this block's logging once /health works on Render.
+            $code = ($e instanceof PDOException && isset($e->errorInfo[1])) ? $e->errorInfo[1] : get_class($e);
+            error_log('health db error=' . $code
+                . ' host_set=' . (getenv('DB_HOST') ? 'y' : 'n')
+                . ' ca_exists=' . (is_readable((string) getenv('DB_SSL_CA')) ? 'y' : 'n'));
         }
 
         http_response_code($db === 'up' ? 200 : 503);
