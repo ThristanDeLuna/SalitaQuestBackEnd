@@ -1,5 +1,5 @@
 <?php
-defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
+defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 /**
  * ------------------------------------------------------------------
  * LavaLust - an opensource lightweight PHP MVC Framework
@@ -44,7 +44,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 | and disable it back when you're done.
 |
 */
-$config['migration_enabled'] = FALSE;
+$config['migration_enabled'] = TRUE;
 
 /*
 |--------------------------------------------------------------------------
@@ -66,4 +66,4 @@ $config['migration_table'] = 'migrations';
 | Also, writing permission is required within the migrations path.
 |
 */
-$config['migration_path'] = APP_DIR.'migrations/';
+$config['migration_path'] = APP_DIR . 'migrations/';

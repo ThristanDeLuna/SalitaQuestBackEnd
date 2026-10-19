@@ -1,5 +1,5 @@
 <?php
-defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
+defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 /**
  * ------------------------------------------------------------------
  * LavaLust - an opensource lightweight PHP MVC Framework
@@ -45,3 +45,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
+$router->get('db/migrate/dry-run', 'MigrationController::dry_run');
+$router->get('db/migrate',  'MigrationController::migrate');
+$router->get('db/status',   'MigrationController::status');
+$router->get('db/preview',  'MigrationController::preview');
+$router->get('db/rollback', 'MigrationController::rollback');
