@@ -268,6 +268,13 @@ class Database {
             PDO::ATTR_EMULATE_PREPARES   => false,
         );
 
+        $ssl_ca = getenv('DB_SSL_CA');
+        if ($driver === 'mysql' && $ssl_ca) {
+            // PHP 8.4+ moved this constant to Pdo\Mysql, so check for both names.
+            $name = defined('Pdo\\Mysql::ATTR_SSL_CA') ? 'Pdo\\Mysql::ATTR_SSL_CA' : 'PDO::MYSQL_ATTR_SSL_CA';
+            $options[constant($name)] = $ssl_ca;
+        }
+
         try {
             $this->db = new PDO($dsn, $username, $password, $options);
             $this->driver = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
