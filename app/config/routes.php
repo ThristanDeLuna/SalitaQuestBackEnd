@@ -1,5 +1,5 @@
 <?php
-defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
+defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 /**
  * ------------------------------------------------------------------
  * LavaLust - an opensource lightweight PHP MVC Framework
@@ -52,3 +52,8 @@ $router->get('/api/admin/submissions', 'Submissions::admin_list');
 $router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
 $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 // ---- end Member D ----
+
+$router->get('db/migrate',  'MigrationController::migrate');
+$router->get('db/status',   'MigrationController::status');
+$router->get('db/rollback', 'MigrationController::rollback');
+
