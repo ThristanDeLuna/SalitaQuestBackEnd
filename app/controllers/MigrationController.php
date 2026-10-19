@@ -2,9 +2,10 @@
 defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 
 // Command line only. Never reachable from a browser.
+// No dry-run or preview: this library's migrate() takes no argument, so such a
+// command would really change the database.
 class MigrationController extends Controller
 {
-
     public function __construct()
     {
         if (php_sapi_name() !== 'cli') {
@@ -15,24 +16,21 @@ class MigrationController extends Controller
         $this->call->library('migration');
     }
 
+    // Runs every pending migration.
     public function migrate()
     {
-        $this->migration->migrate(false);
+        $this->migration->migrate();
     }
-    public function dry_run()
-    {
-        $this->migration->migrate(true);
-    }   // shows what would run
+
+    // Lists which migrations have run and which are pending. Changes nothing.
     public function status()
     {
         $this->migration->status();
     }
-    public function preview()
+
+    // Undoes ONE migration (the latest). Never run this on the shared Aiven database.
+    public function rollback()
     {
-        $this->migration->preview();
-    }
-    public function rollback($steps = 1)
-    {
-        $this->migration->rollback($steps);
+        $this->migration->rollback();
     }
 }
