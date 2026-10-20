@@ -46,3 +46,6 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 $router->get('/', 'Welcome::index');
 $router->get('/health', 'Health::index');
+if (getenv('APP_ENV') === 'development') {
+    $router->post('/auth/dev-login', 'Auth::dev_login');
+}
