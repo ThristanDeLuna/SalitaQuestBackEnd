@@ -45,6 +45,22 @@ defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
+// ---- Member A: Checking 1 preview pages (remove when the React app exists) ----
+// Development only, same rule as config.php: a missing APP_ENV counts as development.
+// On Render APP_ENV=production, so these routes do not exist there (404).
+if ((getenv('APP_ENV') ?: 'development') === 'development') {
+	$router->get('/preview', 'Preview::index');
+	$router->get('/preview/regions/{region}', 'Preview::region');
+	$router->get('/preview/play/matching/{region}', 'Preview::matching');
+	$router->get('/preview/play/listening/{region}', 'Preview::listening');
+	$router->get('/preview/passport', 'Preview::passport');
+	$router->get('/preview/submit', 'Preview::submit');
+	$router->get('/preview/admin/approvals', 'Preview::approvals');
+	$router->get('/preview/admin/regions', 'Preview::regions');
+	$router->get('/preview/admin/words', 'Preview::words');
+	$router->get('/preview/admin/audio', 'Preview::audio');
+}
+// ---- end Member A preview ----
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
