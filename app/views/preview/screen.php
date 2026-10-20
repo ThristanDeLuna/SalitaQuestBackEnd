@@ -1,5 +1,5 @@
 <?php defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed'); ?>
-<!-- System screens from the site map. $screen is set by the controller, never from the URL. -->
+<!-- System screens from the site map (grey boxes). $screen is set by the controller, never from the URL. -->
 <?php if ($screen === 'sign_in'): ?>
 	<h1>Sign in to continue</h1>
 	<div class="placeholder">This page needs a Salita Quest account.<br><small>(HTTP 401)</small></div>

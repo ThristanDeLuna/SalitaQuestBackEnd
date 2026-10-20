@@ -49,6 +49,8 @@ $router->get('/', 'Welcome::index');
 // Development only, same rule as config.php: a missing APP_ENV counts as development.
 // On Render APP_ENV=production, so these routes do not exist there (404).
 if ((getenv('APP_ENV') ?: 'development') === 'development') {
+	$router->get('/preview/checking-1', 'Preview::checking1');   // overview of the 4 checking items
+	$router->get('/preview/doc/{name}', 'Preview::doc');         // diagrams from docs/ (fixed list)
 	$router->get('/preview', 'Preview::index');
 	$router->get('/preview/regions/{region}', 'Preview::region');
 	$router->get('/preview/play/matching/{region}', 'Preview::matching');
@@ -59,8 +61,14 @@ if ((getenv('APP_ENV') ?: 'development') === 'development') {
 	$router->get('/preview/admin/regions', 'Preview::regions');
 	$router->get('/preview/admin/words', 'Preview::words');
 	$router->get('/preview/admin/audio', 'Preview::audio');
+	// Form submits for C's working screens (same methods, they check the request method)
+	$router->post('/preview/play/matching/{region}', 'Preview::matching');
+	$router->post('/preview/play/listening/{region}', 'Preview::listening');
+	$router->post('/preview/admin/audio', 'Preview::audio');
+	$router->post('/preview/passport/reset', 'Preview::reset');
 }
 // ---- end Member A preview ----
+
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');

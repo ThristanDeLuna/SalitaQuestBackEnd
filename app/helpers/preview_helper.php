@@ -14,12 +14,15 @@ if ( ! function_exists('e')) {
 	}
 }
 
-// Build a preview link and keep the demo role (?as=...) in it.
-// Example: pv_url('regions/tagalog', 'admin') -> /preview/regions/tagalog?as=admin
+// Build a preview link and keep the demo role (?as=...) in it, plus optional extra
+// query values. Example: pv_url('admin/audio', 'admin', ['upload' => 3])
+//   -> /preview/admin/audio?as=admin&upload=3
 if ( ! function_exists('pv_url')) {
-	function pv_url($path, $role)
+	function pv_url($path, $role, array $extra = [])
 	{
-		$url = site_url('preview' . ($path === '' ? '' : '/' . $path));
-		return $role === 'visitor' ? $url : $url . '?as=' . urlencode($role);
+		$url   = site_url('preview' . ($path === '' ? '' : '/' . $path));
+		$query = $role === 'visitor' ? [] : ['as' => $role];
+		$query = array_merge($query, $extra);
+		return $query ? $url . '?' . http_build_query($query) : $url;
 	}
 }

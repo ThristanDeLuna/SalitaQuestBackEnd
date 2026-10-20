@@ -1,5 +1,5 @@
 <?php defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed'); ?>
-<!-- One placeholder page from the site map. Values come from Preview::_page(). -->
+<!-- One placeholder page from the site map. Values are set in Preview::_page(). -->
 <h1><?= e($title) ?></h1>
 <div class="meta">
 	Planned route <code><?= e($route) ?></code> &middot; Access: <?= e($access) ?> &middot; Owner: <?= e($owner) ?>
