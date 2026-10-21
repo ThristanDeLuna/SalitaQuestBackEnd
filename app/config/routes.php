@@ -49,3 +49,7 @@ $router->get('/health', 'Health::index');
 if (getenv('APP_ENV') === 'development') {
     $router->post('/auth/dev-login', 'Auth::dev_login');
 }
+$router->get('/auth/me', 'Auth::me');
+$router->post('/auth/google', 'Auth::google');
+$router->post('/auth/refresh', 'Auth::refresh');
+$router->post('/auth/logout', 'Auth::logout');

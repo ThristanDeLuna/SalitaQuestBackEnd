@@ -21,12 +21,7 @@ class Health extends Controller
             $pdo->query('SELECT 1');   // needs no table
             $db = 'up';
         } catch (Throwable $e) {
-            // TEMPORARY diagnosis: log codes only (no message, no host, no password).
-            // Remove this block's logging once /health works on Render.
-            $code = ($e instanceof PDOException && isset($e->errorInfo[1])) ? $e->errorInfo[1] : get_class($e);
-            error_log('health db error=' . $code
-                . ' host_set=' . (getenv('DB_HOST') ? 'y' : 'n')
-                . ' ca_exists=' . (is_readable((string) getenv('DB_SSL_CA')) ? 'y' : 'n'));
+            // db stays 'down'. Nothing is logged here on purpose, so no host or credential can leak.
         }
 
         http_response_code($db === 'up' ? 200 : 503);

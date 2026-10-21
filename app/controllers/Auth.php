@@ -42,7 +42,6 @@ class Auth extends ApiController
     }
 
     // POST /auth/google: exchange a Google ID token for our own tokens.
-    // NOT READY: needs app/libraries/Google_auth_lib.php, and the route is not registered yet.
     public function google()
     {
         $this->api->require_method('POST');
@@ -85,5 +84,28 @@ class Auth extends ApiController
         }
 
         $this->token_response($user);
+    }
+
+    // POST /auth/refresh: swap a valid refresh token for a new pair.
+    // The library checks the signature, the type, the database row and the user,
+    // deletes the old row (so each refresh token works once) and answers by itself.
+    public function refresh()
+    {
+        $this->api->require_method('POST');
+        $body = $this->api->body();
+        $this->api->refresh_access_token((string) ($body['refresh_token'] ?? ''));
+    }
+
+    // POST /auth/logout: delete the refresh token so it can never be used again.
+    // Always answers 200, so calling it twice is harmless.
+    public function logout()
+    {
+        $this->api->require_method('POST');
+        $body = $this->api->body();
+        $rt = (string) ($body['refresh_token'] ?? '');
+        if ($rt !== '') {
+            $this->api->revoke_refresh_token($rt);
+        }
+        $this->api->respond(['message' => 'Signed out']);
     }
 }
