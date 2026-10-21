@@ -399,7 +399,7 @@ $config['security_headers'] = [
     // ── API ──
     'api_max_body' => 1048576,
     'cors' => [
-        'allowed_origins' => ['http://localhost:5173'],
+        'allowed_origins' => ['http://localhost:5173', 'https://salita-quest-front-end.vercel.app'],
         'credentials'     => false,
         'methods'         => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         'headers'         => 'Authorization, Content-Type, X-Requested-With',
