@@ -184,5 +184,30 @@ check('everything earned, fixed order', $rules->badges_for([
     ['game' => 'matching',  'region_code' => 'hiligaynon', 'score' => 10, 'max_score' => 40],
 ], 3, 5), ['first_stamp', 'sailor_3', 'gold_catcher', 'sharp_ears', 'island_hopper']);
 
+echo "quests_for (today's attempts)\n";
+check('no attempts today: no quest done', $rules->quests_for([]),
+      ['play_one' => false, 'pass_one' => false, 'both_games' => false]);
+check('one failed matching: play only', $rules->quests_for([
+    ['game' => 'matching', 'score' => 10, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => false, 'both_games' => false]);
+check('one passed matching: play and pass', $rules->quests_for([
+    ['game' => 'matching', 'score' => 30, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => false]);
+check('both games, both failed: play and both', $rules->quests_for([
+    ['game' => 'matching',  'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'score' => 10, 'max_score' => 50],
+]), ['play_one' => true, 'pass_one' => false, 'both_games' => true]);
+check('both games, one passed: all three', $rules->quests_for([
+    ['game' => 'matching',  'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'score' => 40, 'max_score' => 50],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => true]);
+check('two matching rounds is not both games', $rules->quests_for([
+    ['game' => 'matching', 'score' => 40, 'max_score' => 40],
+    ['game' => 'matching', 'score' => 40, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => false]);
+check('unknown game ignored', $rules->quests_for([
+    ['game' => 'flashcards', 'score' => 99, 'max_score' => 99],
+]), ['play_one' => false, 'pass_one' => false, 'both_games' => false]);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);
