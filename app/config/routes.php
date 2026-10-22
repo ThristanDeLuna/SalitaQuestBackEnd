@@ -53,7 +53,15 @@ $router->get('/auth/me', 'Auth::me');
 $router->post('/auth/google', 'Auth::google');
 $router->post('/auth/refresh', 'Auth::refresh');
 $router->post('/auth/logout', 'Auth::logout');
+
+// ---- Member D ----
+$router->post('/api/submissions', 'Submissions::create');
+$router->get('/api/submissions', 'Submissions::mine');
+$router->get('/api/admin/submissions', 'Submissions::admin_list');
+$router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
+$router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
+// ---- end Member D ----
+
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
-
