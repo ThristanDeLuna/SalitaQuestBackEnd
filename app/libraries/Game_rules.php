@@ -170,6 +170,42 @@ class Game_rules
     }
 
     /**
+     * Daily quests (DEC-58). Each quest is a yes/no worked out from TODAY's
+     * attempts only. Nothing is stored. Every quest is always possible for a
+     * player who has at least one open region, so none can become impossible.
+     *   play_one   - played any game today
+     *   pass_one   - passed any game today
+     *   both_games - played both Matching and Listening today (any region)
+     *
+     * @param array $todays_attempts Rows for ONE user, already limited to today
+     *                               (Asia/Manila date) by the caller. Each has
+     *                               'game', 'score' and 'max_score'.
+     * @return array quest id => true/false, in a fixed order
+     */
+    public function quests_for(array $todays_attempts)
+    {
+        $played = ['matching' => false, 'listening' => false];
+        $passed = false;
+
+        foreach ($todays_attempts as $a) {
+            $game = isset($a['game']) ? $a['game'] : null;
+            if (!isset($played[$game])) {
+                continue; // ignore anything that is not one of our two games
+            }
+            $played[$game] = true;
+            if ($this->is_pass((int) $a['score'], (int) $a['max_score'])) {
+                $passed = true;
+            }
+        }
+
+        return [
+            'play_one'   => $played['matching'] || $played['listening'],
+            'pass_one'   => $passed,
+            'both_games' => $played['matching'] && $played['listening'],
+        ];
+    }
+
+    /**
      * Is a region ready to play, or still "coming soon"?
      * Matching needs 4 words and listening needs 5 words with audio.
      */
