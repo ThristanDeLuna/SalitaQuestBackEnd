@@ -105,5 +105,32 @@ check('40/50 (80%) = silver',       $rules->medal(40, 50), 'silver');
 check('30/50 (60%) = bronze',       $rules->medal(30, 50), 'bronze');
 check('0/0 empty round = no medal', $rules->medal(0, 0), null);
 
+echo "stars_for (best score per game per region, added up)\n";
+check('no attempts = 0 stars', $rules->stars_for([]), 0);
+$ana = [
+    ['game' => 'matching',  'region_code' => 'tagalog', 'score' => 30],
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 40],
+    ['game' => 'matching',  'region_code' => 'cebuano', 'score' => 40],
+];
+check("Ana's sample = 110",    $rules->stars_for($ana), 110);
+$replay = array_merge($ana, [
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 20], // worse replay
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40], // better replay
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40], // same again
+]);
+check('only the best replay counts (+10)', $rules->stars_for($replay), 120);
+check('failed attempt still counts as best', $rules->stars_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 10],
+]), 10);
+check('unknown game ignored', $rules->stars_for([
+    ['game' => 'flashcards', 'region_code' => 'tagalog', 'score' => 99],
+]), 0);
+$full = [];
+foreach (['tagalog', 'cebuano', 'hiligaynon'] as $reg) {
+    $full[] = ['game' => 'matching',  'region_code' => $reg, 'score' => 40];
+    $full[] = ['game' => 'listening', 'region_code' => $reg, 'score' => 50];
+}
+check('full marks everywhere = 270', $rules->stars_for($full), 270);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);

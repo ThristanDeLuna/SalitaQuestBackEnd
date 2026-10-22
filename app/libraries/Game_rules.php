@@ -90,6 +90,35 @@ class Game_rules
     }
 
     /**
+     * Stars = the best score per game per region, added up (DEC-59).
+     * Replaying a game only raises stars if the new score beats the old best,
+     * so repeat plays cannot farm points. Maximum is 270 with 3 regions
+     * (3 x (40 + 50)).
+     *
+     * @param array $attempts Rows for ONE user, all regions, each with
+     *                        'game', 'region_code' and 'score'.
+     * @return int Total stars
+     */
+    public function stars_for(array $attempts)
+    {
+        $best = []; // key "game|region" => highest score seen
+
+        foreach ($attempts as $a) {
+            $game = isset($a['game']) ? $a['game'] : null;
+            if ($game !== 'matching' && $game !== 'listening') {
+                continue; // ignore anything that is not one of our two games
+            }
+            $key   = $game . '|' . (isset($a['region_code']) ? $a['region_code'] : '');
+            $score = (int) $a['score'];
+            if (!isset($best[$key]) || $score > $best[$key]) {
+                $best[$key] = $score;
+            }
+        }
+
+        return array_sum($best);
+    }
+
+    /**
      * Has the player earned the stamp for a region?
      * Rule: at least one passing matching attempt AND one passing listening attempt.
      * A failed attempt is still saved (it counts for the streak) but never counts here.
