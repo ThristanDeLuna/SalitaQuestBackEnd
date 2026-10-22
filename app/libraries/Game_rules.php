@@ -18,6 +18,8 @@ class Game_rules
     const LISTENING_QUESTIONS = 5;  // questions in one listening quiz (max 50 points)
     const PASS_PERCENT        = 60; // minimum % in a game for it to count toward a stamp
     const SILVER_PERCENT      = 80; // minimum % for a silver medal (gold needs full marks)
+    const MIN_WORDS           = 4;  // a region needs this many words (matching has 4 pairs)
+    const MIN_AUDIO_WORDS     = 5;  // ...and this many words with audio (listening has 5 questions)
 
     /**
      * Score one round of either game.
@@ -116,6 +118,46 @@ class Game_rules
         }
 
         return array_sum($best);
+    }
+
+    /**
+     * Is a region ready to play, or still "coming soon"?
+     * Matching needs 4 words and listening needs 5 words with audio.
+     */
+    public function region_ready($word_count, $audio_word_count)
+    {
+        return (int) $word_count >= self::MIN_WORDS && (int) $audio_word_count >= self::MIN_AUDIO_WORDS;
+    }
+
+    /**
+     * Soft lock: may this player start (or keep playing) this region?
+     * Rule: the number of regions you may have started = stamps earned + 1.
+     * A region you already started always stays playable. A region that is
+     * "coming soon" is never playable and does not count toward the limit.
+     * Admins can skip the lock ($skip_lock) but a region still must be ready.
+     *
+     * @param string $region_code      Region the player wants to open.
+     * @param array  $started_regions  Region codes the player already has attempts in.
+     * @param int    $stamp_count      Stamps the player has earned.
+     * @param array  $ready_regions    Region codes that pass region_ready().
+     * @param bool   $skip_lock        True for Admins (safety net for the demo).
+     */
+    public function can_play_region($region_code, array $started_regions, $stamp_count, array $ready_regions, $skip_lock = false)
+    {
+        if (!in_array($region_code, $ready_regions, true)) {
+            return false; // coming soon
+        }
+        if ($skip_lock) {
+            return true;
+        }
+
+        // Only started regions that are ready count toward the limit.
+        $started_ready = array_intersect($started_regions, $ready_regions);
+        if (in_array($region_code, $started_ready, true)) {
+            return true; // already started: stays open
+        }
+
+        return count($started_ready) < ((int) $stamp_count + 1);
     }
 
     /**
