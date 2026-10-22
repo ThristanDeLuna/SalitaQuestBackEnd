@@ -132,5 +132,22 @@ foreach (['tagalog', 'cebuano', 'hiligaynon'] as $reg) {
 }
 check('full marks everywhere = 270', $rules->stars_for($full), 270);
 
+echo "region_ready and can_play_region (soft lock)\n";
+check('4 words, 5 audio = ready',      $rules->region_ready(4, 5), true);
+check('3 words = coming soon',         $rules->region_ready(3, 5), false);
+check('4 audio only = coming soon',    $rules->region_ready(10, 4), false);
+
+$ready = ['tagalog', 'cebuano', 'hiligaynon'];
+check('new player: may start any one region', $rules->can_play_region('cebuano', [], 0, $ready), true);
+check('0 stamps, Tagalog started: Cebuano locked', $rules->can_play_region('cebuano', ['tagalog'], 0, $ready), false);
+check('0 stamps, Tagalog started: Tagalog still open', $rules->can_play_region('tagalog', ['tagalog'], 0, $ready), true);
+check('1 stamp, Tagalog started: Cebuano opens', $rules->can_play_region('cebuano', ['tagalog'], 1, $ready), true);
+check('1 stamp, two started: third locked', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 1, $ready), false);
+check('2 stamps, two started: third opens', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 2, $ready), true);
+check('coming-soon region never playable', $rules->can_play_region('hiligaynon', [], 3, ['tagalog', 'cebuano']), false);
+check('coming-soon region does not use a slot', $rules->can_play_region('cebuano', ['hiligaynon'], 0, ['tagalog', 'cebuano']), true);
+check('admin skips the lock', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 0, $ready, true), true);
+check('admin still blocked on coming soon', $rules->can_play_region('hiligaynon', [], 0, ['tagalog'], true), false);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);
