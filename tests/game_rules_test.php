@@ -149,5 +149,40 @@ check('coming-soon region does not use a slot', $rules->can_play_region('cebuano
 check('admin skips the lock', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 0, $ready, true), true);
 check('admin still blocked on coming soon', $rules->can_play_region('hiligaynon', [], 0, ['tagalog'], true), false);
 
+echo "badges_for\n";
+check('nothing yet = no badges', $rules->badges_for([], 0, 0), []);
+check('one stamp = First Stamp', $rules->badges_for([], 1, 0), ['first_stamp']);
+check('longest streak 3 = 3-day Sailor', $rules->badges_for([], 0, 3), ['sailor_3']);
+check('longest streak 2 = no Sailor',    $rules->badges_for([], 0, 2), []);
+check('full marks = Gold Catcher', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40, 'max_score' => 40],
+], 0, 0), ['gold_catcher']);
+check('30/40 is not gold', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 40],
+], 0, 0), []);
+check('passed listening = Sharp Ears', $rules->badges_for([
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 50],
+], 0, 0), ['sharp_ears']);
+check('failed listening = no Sharp Ears', $rules->badges_for([
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 20, 'max_score' => 50],
+], 0, 0), []);
+check('passed matching alone is not Sharp Ears', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 40],
+], 0, 0), []);
+check('3 regions played = Island Hopper', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog',    'score' => 10, 'max_score' => 40],
+    ['game' => 'matching', 'region_code' => 'cebuano',    'score' => 10, 'max_score' => 40],
+    ['game' => 'matching', 'region_code' => 'hiligaynon', 'score' => 10, 'max_score' => 40],
+], 0, 0), ['island_hopper']);
+check('2 regions only = no Island Hopper', $rules->badges_for([
+    ['game' => 'matching',  'region_code' => 'tagalog', 'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'region_code' => 'cebuano', 'score' => 10, 'max_score' => 50],
+], 0, 0), []);
+check('everything earned, fixed order', $rules->badges_for([
+    ['game' => 'matching',  'region_code' => 'tagalog',    'score' => 40, 'max_score' => 40],
+    ['game' => 'listening', 'region_code' => 'cebuano',    'score' => 50, 'max_score' => 50],
+    ['game' => 'matching',  'region_code' => 'hiligaynon', 'score' => 10, 'max_score' => 40],
+], 3, 5), ['first_stamp', 'sailor_3', 'gold_catcher', 'sharp_ears', 'island_hopper']);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);
