@@ -45,6 +45,15 @@ defined('PREVENT_DIRECT_ACCESS') or exit('No direct script access allowed');
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
+// ---- Member D ----
+$router->post('/api/submissions', 'Submissions::create');
+$router->get('/api/submissions', 'Submissions::mine');
+$router->get('/api/admin/submissions', 'Submissions::admin_list');
+$router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
+$router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
+// ---- end Member D ----
+
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
+
