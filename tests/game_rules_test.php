@@ -95,5 +95,15 @@ check('cycles back after 3 days',          $rules->word_of_the_day($ids, '2026-1
 check('no words -> null',                  $rules->word_of_the_day([], '2026-10-16'), null);
 check('one word -> always that word',      $rules->word_of_the_day([7], '2026-10-16'), 7);
 
+echo "medal (bronze = pass, silver = 80%, gold = full marks)\n";
+check('40/40 = gold',               $rules->medal(40, 40), 'gold');
+check('50/50 = gold',               $rules->medal(50, 50), 'gold');
+check('30/40 (75%) = bronze',       $rules->medal(30, 40), 'bronze');
+check('24/40 (60%) = bronze',       $rules->medal(24, 40), 'bronze');
+check('20/40 (50%) = no medal',     $rules->medal(20, 40), null);
+check('40/50 (80%) = silver',       $rules->medal(40, 50), 'silver');
+check('30/50 (60%) = bronze',       $rules->medal(30, 50), 'bronze');
+check('0/0 empty round = no medal', $rules->medal(0, 0), null);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);

@@ -17,6 +17,7 @@ class Game_rules
     const MATCHING_PAIRS      = 4;  // pairs in one matching round   (max 40 points)
     const LISTENING_QUESTIONS = 5;  // questions in one listening quiz (max 50 points)
     const PASS_PERCENT        = 60; // minimum % in a game for it to count toward a stamp
+    const SILVER_PERCENT      = 80; // minimum % for a silver medal (gold needs full marks)
 
     /**
      * Score one round of either game.
@@ -65,6 +66,27 @@ class Game_rules
             return false; // an empty round can never pass
         }
         return ($score * 100) >= (self::PASS_PERCENT * $max_score);
+    }
+
+    /**
+     * Which medal does one score earn? (DEC-59)
+     * bronze = a pass (60%+), silver = 80%+, gold = full marks, null = not a pass.
+     * Same integer maths as is_pass(): no float rounding.
+     *
+     * @return string|null 'gold', 'silver', 'bronze' or null
+     */
+    public function medal($score, $max_score)
+    {
+        if (!$this->is_pass($score, $max_score)) {
+            return null; // below the pass mark: no medal
+        }
+        if ($score >= $max_score) {
+            return 'gold';
+        }
+        if (($score * 100) >= (self::SILVER_PERCENT * $max_score)) {
+            return 'silver';
+        }
+        return 'bronze';
     }
 
     /**
