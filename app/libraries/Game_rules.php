@@ -18,6 +18,8 @@ class Game_rules
     const LISTENING_QUESTIONS = 5;  // questions in one listening quiz (max 50 points)
     const PASS_PERCENT        = 60; // minimum % in a game for it to count toward a stamp
     const SILVER_PERCENT      = 80; // minimum % for a silver medal (gold needs full marks)
+    const SAILOR_DAYS         = 3;  // streak length for the "3-day Sailor" badge
+    const ISLAND_HOPPER_REGIONS = 3; // regions played for the "Island Hopper" badge
     const MIN_WORDS           = 4;  // a region needs this many words (matching has 4 pairs)
     const MIN_AUDIO_WORDS     = 5;  // ...and this many words with audio (listening has 5 questions)
 
@@ -118,6 +120,53 @@ class Game_rules
         }
 
         return array_sum($best);
+    }
+
+    /**
+     * Which badges has the player earned? (DEC-58) Nothing is stored: the list
+     * is worked out again from the data every time.
+     *   first_stamp   - at least one region stamp
+     *   sailor_3      - best streak reached 3 days (uses the LONGEST streak,
+     *                   so a badge is never lost when the streak breaks)
+     *   gold_catcher  - full marks in any game
+     *   sharp_ears    - passed a listening quiz
+     *   island_hopper - played games in 3 different regions
+     *
+     * @param array $attempts       Rows for ONE user, each with 'game',
+     *                              'region_code', 'score' and 'max_score'.
+     * @param int   $stamp_count    Stamps earned.
+     * @param int   $longest_streak Best streak so far.
+     * @return array Badge ids earned, in a fixed order.
+     */
+    public function badges_for(array $attempts, $stamp_count, $longest_streak)
+    {
+        $gold    = false;
+        $ears    = false;
+        $regions = [];
+
+        foreach ($attempts as $a) {
+            $score = (int) $a['score'];
+            $max   = (int) $a['max_score'];
+
+            if ($this->medal($score, $max) === 'gold') {
+                $gold = true;
+            }
+            if (isset($a['game']) && $a['game'] === 'listening' && $this->is_pass($score, $max)) {
+                $ears = true;
+            }
+            if (isset($a['region_code']) && $a['region_code'] !== '') {
+                $regions[$a['region_code']] = true;
+            }
+        }
+
+        $earned = [];
+        if ((int) $stamp_count >= 1)                            { $earned[] = 'first_stamp'; }
+        if ((int) $longest_streak >= self::SAILOR_DAYS)         { $earned[] = 'sailor_3'; }
+        if ($gold)                                              { $earned[] = 'gold_catcher'; }
+        if ($ears)                                              { $earned[] = 'sharp_ears'; }
+        if (count($regions) >= self::ISLAND_HOPPER_REGIONS)     { $earned[] = 'island_hopper'; }
+
+        return $earned;
     }
 
     /**
