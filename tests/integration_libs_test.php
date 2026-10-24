@@ -25,6 +25,7 @@ check('bad JSON -> null',             $m->parse_response('<html>', 200, 'salamat
 check('JSON status 403 -> null',      $m->parse_response('{"responseData":{"translatedText":"x"},"responseStatus":403}', 200, 'a'), null);
 check('empty text -> null',           $m->parse_response('{"responseData":{"translatedText":"  "},"responseStatus":200}', 200, 'a'), null);
 check('quota warning -> null',        $m->parse_response('{"responseData":{"translatedText":"MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS"},"responseStatus":200}', 200, 'a'), null);
+check('error sent as a translation -> null', $m->parse_response('{"responseData":{"translatedText":"Please, specify two different languages"},"responseStatus":200}', 200, 'tubig'), null);
 check('same text back -> null',       $m->parse_response('{"responseData":{"translatedText":"Salamat"},"responseStatus":200}', 200, 'salamat'), null);
 check('suggest(): unknown region',    $m->suggest('salamat', 'bisaya'), null);
 check('suggest(): empty word',        $m->suggest('   ', 'cebuano'), null);

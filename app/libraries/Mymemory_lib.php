@@ -88,10 +88,13 @@ class Mymemory_lib
         if ($text === '') {
             return null;
         }
-        // Quota and error messages can arrive as "translations". Not verified
-        // against the real wording, so check the quota text in a test.
-        if (stripos($text, 'MYMEMORY WARNING') !== false) {
-            return null;
+        // MyMemory sends some error messages as if they were translations, with
+        // status 200. Seen in a real test: "Please, specify two different
+        // languages". The quota message is not seen yet (assumed MYMEMORY WARNING).
+        foreach (['MYMEMORY WARNING', 'PLEASE, SPECIFY', 'INVALID LANGUAGE'] as $bad) {
+            if (stripos($text, $bad) !== false) {
+                return null;
+            }
         }
         // Same text back means it did not translate anything.
         if (strcasecmp($text, trim($word)) === 0) {
