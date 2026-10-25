@@ -25,7 +25,7 @@ class Create_submissions_table
                 'id'                   => ['type' => 'INT', 'constraint' => 11, 'unsigned' => TRUE, 'auto_increment' => TRUE, 'null' => FALSE],
                 // The contributor (users.id)
                 'user_id'              => ['type' => 'INT', 'constraint' => 11, 'unsigned' => TRUE, 'null' => FALSE],
-                // regions.code, e.g. tagalog, bisaya, hiligaynon
+                // regions.code, e.g. tagalog, cebuano, hiligaynon
                 'region_code'          => ['type' => 'VARCHAR', 'constraint' => 32, 'null' => FALSE],
                 'word'                 => ['type' => 'VARCHAR', 'constraint' => 255, 'null' => FALSE],
                 // What the contributor finally typed (starts as the MyMemory suggestion, editable)
