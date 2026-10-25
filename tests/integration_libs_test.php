@@ -3,7 +3,12 @@
 // no database, no LavaLust. Run from the backend folder:
 //   php tests/integration_libs_test.php
 define('PREVENT_DIRECT_ACCESS', true);
-function lava_instance() { return new stdClass(); } // stub: the pure methods never use it
+// Stubs: the libraries load a config file and read it with config_item().
+// An empty $TEST_CONFIG means "nothing configured" (no key, no email).
+$TEST_CONFIG = [];
+class StubConfig { public function load($file) { return true; } }
+function lava_instance() { $o = new stdClass(); $o->config = new StubConfig(); return $o; }
+function config_item($item) { global $TEST_CONFIG; return $TEST_CONFIG[$item] ?? null; }
 require __DIR__ . '/../app/libraries/Mymemory_lib.php';
 require __DIR__ . '/../app/libraries/Brevo_lib.php';
 

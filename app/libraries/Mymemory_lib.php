@@ -16,16 +16,23 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 class Mymemory_lib
 {
     // Our region code => MyMemory language code (RFC 3066 / ISO).
-    // NOT VERIFIED for 'ceb' and 'hil': run the browser test first.
+    // Checked on Oct 24 with tools/mymemory_check.php: MyMemory accepts tl, ceb and hil.
     const LANG = ['tagalog' => 'tl', 'cebuano' => 'ceb', 'hiligaynon' => 'hil'];
 
-    const URL = 'https://api.mymemory.translated.net/get';
-
     private $_lava;
+    private $url;      // endpoint, from app/config/mymemory.php
+    private $email;    // optional contact email ('' if not set)
+    private $timeout;  // seconds to wait for MyMemory
 
     public function __construct()
     {
         $this->_lava = lava_instance();
+        // Load app/config/mymemory.php so config_item() can read its keys
+        $this->_lava->config->load('mymemory');
+        $this->url     = config_item('mymemory_url');
+        $this->email   = config_item('mymemory_email');
+        // "?: 6" matters: a timeout of 0 would make curl wait forever
+        $this->timeout = (int) config_item('mymemory_timeout') ?: 6;
     }
 
     /** Suggested English meaning of $word, or NULL. */
@@ -41,18 +48,16 @@ class Mymemory_lib
             'q'        => $word,
             'langpair' => self::LANG[$region_code] . '|en', // regional language -> English
         ];
-        // Optional contact email (MyMemory's "de" parameter). Name only, no value here.
-        $email = getenv('MYMEMORY_EMAIL');
-        if ($email) {
-            $params['de'] = $email;
+        // Optional contact email (MyMemory's "de" parameter), from app/config/mymemory.php
+        if ($this->email) {
+            $params['de'] = $this->email;
         }
 
         $start = microtime(true);
-        $ch = curl_init(self::URL . '?' . http_build_query($params));
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6]);
+        $ch = curl_init($this->url . '?' . http_build_query($params));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $this->timeout]);
         $body   = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         $ms = (int) round((microtime(true) - $start) * 1000);
 
         $text = $this->parse_response(is_string($body) ? $body : null, $status, $word);
