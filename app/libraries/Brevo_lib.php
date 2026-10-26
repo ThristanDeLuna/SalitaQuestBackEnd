@@ -5,7 +5,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  * Brevo_lib (Member D): sends one transactional email through the Brevo
  * HTTP API (DEC-06: not SMTP, because SMTP may be blocked on Render).
  *
- * Environment variable NAMES (values live only in .env and Render, never in Git):
+ * Settings are in app/config/brevo.php. Its secret values come from environment
+ * variables (values live only in .env and Render, never in Git):
  *   BREVO_API_KEY, BREVO_SENDER_EMAIL (must be a verified sender in Brevo),
  *   BREVO_SENDER_NAME (optional, default "Salita Quest").
  *
@@ -17,38 +18,48 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  */
 class Brevo_lib
 {
-    const URL = 'https://api.brevo.com/v3/smtp/email';
-
     private $_lava;
+    private $url;           // endpoint, from app/config/brevo.php
+    private $api_key;       // never log or return it
+    private $sender_email;  // verified sender in Brevo
+    private $sender_name;
+    private $timeout;       // seconds to wait for Brevo
 
     public function __construct()
     {
         $this->_lava = lava_instance();
+        // Load app/config/brevo.php so config_item() can read its keys
+        $this->_lava->config->load('brevo');
+        $this->url          = config_item('brevo_url');
+        $this->api_key      = (string) config_item('brevo_api_key');
+        $this->sender_email = (string) config_item('brevo_sender_email');
+        $this->sender_name  = (string) config_item('brevo_sender_name');
+        // "?: 8" matters: a timeout of 0 would make curl wait forever
+        $this->timeout      = (int) config_item('brevo_timeout') ?: 8;
     }
 
     public function send(string $to_email, string $to_name, string $subject, string $html): bool
     {
-        $key    = getenv('BREVO_API_KEY');
-        $sender = getenv('BREVO_SENDER_EMAIL');
-        if (!$key || !$sender || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) {
+        // Missing key or sender (not configured) or a bad address: do not call Brevo
+        if ($this->api_key === '' || $this->sender_email === ''
+            || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) {
             return false;
         }
-        $payload = $this->build_payload($sender, getenv('BREVO_SENDER_NAME') ?: 'Salita Quest',
+        $payload = $this->build_payload($this->sender_email, $this->sender_name ?: 'Salita Quest',
                                         $to_email, $to_name, $subject, $html);
 
         $start = microtime(true);
-        $ch = curl_init(self::URL);
+        $ch = curl_init($this->url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_TIMEOUT        => $this->timeout,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-            CURLOPT_HTTPHEADER     => ['api-key: ' . $key, 'content-type: application/json',
+            CURLOPT_HTTPHEADER     => ['api-key: ' . $this->api_key, 'content-type: application/json',
                                        'accept: application/json'],
         ]);
         $body   = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         $ms = (int) round((microtime(true) - $start) * 1000);
 
         $ok = $this->is_success($status, is_string($body) ? $body : null);

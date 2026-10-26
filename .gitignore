@@ -24,5 +24,7 @@ runtime/*
 
 # OS
 Thumbs.db
-# Wireframe images (not part of the app)
-docs/
+
+
+#untracking
+tools/
