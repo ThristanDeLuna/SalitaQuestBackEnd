@@ -12,9 +12,10 @@ class Google_auth_lib
     }
 
     /** Returns ['sub', 'email', 'name'] if the token is valid for our app, else NULL. */
-    public function verify(string $id_token): ?array
+        public function verify(string $id_token): ?array
     {
-        $client_id = getenv('GOOGLE_CLIENT_ID');
+        $this->_lava->config->load('google');          // reads app/config/google.php
+        $client_id = config_item('google_client_id');  // same value, now via config
         if (!$client_id || $id_token === '' || strlen($id_token) > 4096) {
             return null;
         }
