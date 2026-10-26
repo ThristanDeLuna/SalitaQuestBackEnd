@@ -17,6 +17,11 @@ class Game_rules
     const MATCHING_PAIRS      = 4;  // pairs in one matching round   (max 40 points)
     const LISTENING_QUESTIONS = 5;  // questions in one listening quiz (max 50 points)
     const PASS_PERCENT        = 60; // minimum % in a game for it to count toward a stamp
+    const SILVER_PERCENT      = 80; // minimum % for a silver medal (gold needs full marks)
+    const SAILOR_DAYS         = 3;  // streak length for the "3-day Sailor" badge
+    const ISLAND_HOPPER_REGIONS = 3; // regions played for the "Island Hopper" badge
+    const MIN_WORDS           = 4;  // a region needs this many words (matching has 4 pairs)
+    const MIN_AUDIO_WORDS     = 5;  // ...and this many words with audio (listening has 5 questions)
 
     /**
      * Score one round of either game.
@@ -65,6 +70,179 @@ class Game_rules
             return false; // an empty round can never pass
         }
         return ($score * 100) >= (self::PASS_PERCENT * $max_score);
+    }
+
+    /**
+     * Which medal does one score earn? (DEC-59)
+     * bronze = a pass (60%+), silver = 80%+, gold = full marks, null = not a pass.
+     * Same integer maths as is_pass(): no float rounding.
+     *
+     * @return string|null 'gold', 'silver', 'bronze' or null
+     */
+    public function medal($score, $max_score)
+    {
+        if (!$this->is_pass($score, $max_score)) {
+            return null; // below the pass mark: no medal
+        }
+        if ($score >= $max_score) {
+            return 'gold';
+        }
+        if (($score * 100) >= (self::SILVER_PERCENT * $max_score)) {
+            return 'silver';
+        }
+        return 'bronze';
+    }
+
+    /**
+     * Stars = the best score per game per region, added up (DEC-59).
+     * Replaying a game only raises stars if the new score beats the old best,
+     * so repeat plays cannot farm points. Maximum is 270 with 3 regions
+     * (3 x (40 + 50)).
+     *
+     * @param array $attempts Rows for ONE user, all regions, each with
+     *                        'game', 'region_code' and 'score'.
+     * @return int Total stars
+     */
+    public function stars_for(array $attempts)
+    {
+        $best = []; // key "game|region" => highest score seen
+
+        foreach ($attempts as $a) {
+            $game = isset($a['game']) ? $a['game'] : null;
+            if ($game !== 'matching' && $game !== 'listening') {
+                continue; // ignore anything that is not one of our two games
+            }
+            $key   = $game . '|' . (isset($a['region_code']) ? $a['region_code'] : '');
+            $score = (int) $a['score'];
+            if (!isset($best[$key]) || $score > $best[$key]) {
+                $best[$key] = $score;
+            }
+        }
+
+        return array_sum($best);
+    }
+
+    /**
+     * Which badges has the player earned? (DEC-58) Nothing is stored: the list
+     * is worked out again from the data every time.
+     *   first_stamp   - at least one region stamp
+     *   sailor_3      - best streak reached 3 days (uses the LONGEST streak,
+     *                   so a badge is never lost when the streak breaks)
+     *   gold_catcher  - full marks in any game
+     *   sharp_ears    - passed a listening quiz
+     *   island_hopper - played games in 3 different regions
+     *
+     * @param array $attempts       Rows for ONE user, each with 'game',
+     *                              'region_code', 'score' and 'max_score'.
+     * @param int   $stamp_count    Stamps earned.
+     * @param int   $longest_streak Best streak so far.
+     * @return array Badge ids earned, in a fixed order.
+     */
+    public function badges_for(array $attempts, $stamp_count, $longest_streak)
+    {
+        $gold    = false;
+        $ears    = false;
+        $regions = [];
+
+        foreach ($attempts as $a) {
+            $score = (int) $a['score'];
+            $max   = (int) $a['max_score'];
+
+            if ($this->medal($score, $max) === 'gold') {
+                $gold = true;
+            }
+            if (isset($a['game']) && $a['game'] === 'listening' && $this->is_pass($score, $max)) {
+                $ears = true;
+            }
+            if (isset($a['region_code']) && $a['region_code'] !== '') {
+                $regions[$a['region_code']] = true;
+            }
+        }
+
+        $earned = [];
+        if ((int) $stamp_count >= 1)                            { $earned[] = 'first_stamp'; }
+        if ((int) $longest_streak >= self::SAILOR_DAYS)         { $earned[] = 'sailor_3'; }
+        if ($gold)                                              { $earned[] = 'gold_catcher'; }
+        if ($ears)                                              { $earned[] = 'sharp_ears'; }
+        if (count($regions) >= self::ISLAND_HOPPER_REGIONS)     { $earned[] = 'island_hopper'; }
+
+        return $earned;
+    }
+
+    /**
+     * Daily quests (DEC-58). Each quest is a yes/no worked out from TODAY's
+     * attempts only. Nothing is stored. Every quest is always possible for a
+     * player who has at least one open region, so none can become impossible.
+     *   play_one   - played any game today
+     *   pass_one   - passed any game today
+     *   both_games - played both Matching and Listening today (any region)
+     *
+     * @param array $todays_attempts Rows for ONE user, already limited to today
+     *                               (Asia/Manila date) by the caller. Each has
+     *                               'game', 'score' and 'max_score'.
+     * @return array quest id => true/false, in a fixed order
+     */
+    public function quests_for(array $todays_attempts)
+    {
+        $played = ['matching' => false, 'listening' => false];
+        $passed = false;
+
+        foreach ($todays_attempts as $a) {
+            $game = isset($a['game']) ? $a['game'] : null;
+            if (!isset($played[$game])) {
+                continue; // ignore anything that is not one of our two games
+            }
+            $played[$game] = true;
+            if ($this->is_pass((int) $a['score'], (int) $a['max_score'])) {
+                $passed = true;
+            }
+        }
+
+        return [
+            'play_one'   => $played['matching'] || $played['listening'],
+            'pass_one'   => $passed,
+            'both_games' => $played['matching'] && $played['listening'],
+        ];
+    }
+
+    /**
+     * Is a region ready to play, or still "coming soon"?
+     * Matching needs 4 words and listening needs 5 words with audio.
+     */
+    public function region_ready($word_count, $audio_word_count)
+    {
+        return (int) $word_count >= self::MIN_WORDS && (int) $audio_word_count >= self::MIN_AUDIO_WORDS;
+    }
+
+    /**
+     * Soft lock: may this player start (or keep playing) this region?
+     * Rule: the number of regions you may have started = stamps earned + 1.
+     * A region you already started always stays playable. A region that is
+     * "coming soon" is never playable and does not count toward the limit.
+     * Admins can skip the lock ($skip_lock) but a region still must be ready.
+     *
+     * @param string $region_code      Region the player wants to open.
+     * @param array  $started_regions  Region codes the player already has attempts in.
+     * @param int    $stamp_count      Stamps the player has earned.
+     * @param array  $ready_regions    Region codes that pass region_ready().
+     * @param bool   $skip_lock        True for Admins (safety net for the demo).
+     */
+    public function can_play_region($region_code, array $started_regions, $stamp_count, array $ready_regions, $skip_lock = false)
+    {
+        if (!in_array($region_code, $ready_regions, true)) {
+            return false; // coming soon
+        }
+        if ($skip_lock) {
+            return true;
+        }
+
+        // Only started regions that are ready count toward the limit.
+        $started_ready = array_intersect($started_regions, $ready_regions);
+        if (in_array($region_code, $started_ready, true)) {
+            return true; // already started: stays open
+        }
+
+        return count($started_ready) < ((int) $stamp_count + 1);
     }
 
     /**

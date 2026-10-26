@@ -95,5 +95,119 @@ check('cycles back after 3 days',          $rules->word_of_the_day($ids, '2026-1
 check('no words -> null',                  $rules->word_of_the_day([], '2026-10-16'), null);
 check('one word -> always that word',      $rules->word_of_the_day([7], '2026-10-16'), 7);
 
+echo "medal (bronze = pass, silver = 80%, gold = full marks)\n";
+check('40/40 = gold',               $rules->medal(40, 40), 'gold');
+check('50/50 = gold',               $rules->medal(50, 50), 'gold');
+check('30/40 (75%) = bronze',       $rules->medal(30, 40), 'bronze');
+check('24/40 (60%) = bronze',       $rules->medal(24, 40), 'bronze');
+check('20/40 (50%) = no medal',     $rules->medal(20, 40), null);
+check('40/50 (80%) = silver',       $rules->medal(40, 50), 'silver');
+check('30/50 (60%) = bronze',       $rules->medal(30, 50), 'bronze');
+check('0/0 empty round = no medal', $rules->medal(0, 0), null);
+
+echo "stars_for (best score per game per region, added up)\n";
+check('no attempts = 0 stars', $rules->stars_for([]), 0);
+$ana = [
+    ['game' => 'matching',  'region_code' => 'tagalog', 'score' => 30],
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 40],
+    ['game' => 'matching',  'region_code' => 'cebuano', 'score' => 40],
+];
+check("Ana's sample = 110",    $rules->stars_for($ana), 110);
+$replay = array_merge($ana, [
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 20], // worse replay
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40], // better replay
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40], // same again
+]);
+check('only the best replay counts (+10)', $rules->stars_for($replay), 120);
+check('failed attempt still counts as best', $rules->stars_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 10],
+]), 10);
+check('unknown game ignored', $rules->stars_for([
+    ['game' => 'flashcards', 'region_code' => 'tagalog', 'score' => 99],
+]), 0);
+$full = [];
+foreach (['tagalog', 'cebuano', 'hiligaynon'] as $reg) {
+    $full[] = ['game' => 'matching',  'region_code' => $reg, 'score' => 40];
+    $full[] = ['game' => 'listening', 'region_code' => $reg, 'score' => 50];
+}
+check('full marks everywhere = 270', $rules->stars_for($full), 270);
+
+echo "region_ready and can_play_region (soft lock)\n";
+check('4 words, 5 audio = ready',      $rules->region_ready(4, 5), true);
+check('3 words = coming soon',         $rules->region_ready(3, 5), false);
+check('4 audio only = coming soon',    $rules->region_ready(10, 4), false);
+
+$ready = ['tagalog', 'cebuano', 'hiligaynon'];
+check('new player: may start any one region', $rules->can_play_region('cebuano', [], 0, $ready), true);
+check('0 stamps, Tagalog started: Cebuano locked', $rules->can_play_region('cebuano', ['tagalog'], 0, $ready), false);
+check('0 stamps, Tagalog started: Tagalog still open', $rules->can_play_region('tagalog', ['tagalog'], 0, $ready), true);
+check('1 stamp, Tagalog started: Cebuano opens', $rules->can_play_region('cebuano', ['tagalog'], 1, $ready), true);
+check('1 stamp, two started: third locked', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 1, $ready), false);
+check('2 stamps, two started: third opens', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 2, $ready), true);
+check('coming-soon region never playable', $rules->can_play_region('hiligaynon', [], 3, ['tagalog', 'cebuano']), false);
+check('coming-soon region does not use a slot', $rules->can_play_region('cebuano', ['hiligaynon'], 0, ['tagalog', 'cebuano']), true);
+check('admin skips the lock', $rules->can_play_region('hiligaynon', ['tagalog', 'cebuano'], 0, $ready, true), true);
+check('admin still blocked on coming soon', $rules->can_play_region('hiligaynon', [], 0, ['tagalog'], true), false);
+
+echo "badges_for\n";
+check('nothing yet = no badges', $rules->badges_for([], 0, 0), []);
+check('one stamp = First Stamp', $rules->badges_for([], 1, 0), ['first_stamp']);
+check('longest streak 3 = 3-day Sailor', $rules->badges_for([], 0, 3), ['sailor_3']);
+check('longest streak 2 = no Sailor',    $rules->badges_for([], 0, 2), []);
+check('full marks = Gold Catcher', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40, 'max_score' => 40],
+], 0, 0), ['gold_catcher']);
+check('30/40 is not gold', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 40],
+], 0, 0), []);
+check('passed listening = Sharp Ears', $rules->badges_for([
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 50],
+], 0, 0), ['sharp_ears']);
+check('failed listening = no Sharp Ears', $rules->badges_for([
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 20, 'max_score' => 50],
+], 0, 0), []);
+check('passed matching alone is not Sharp Ears', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 40],
+], 0, 0), []);
+check('3 regions played = Island Hopper', $rules->badges_for([
+    ['game' => 'matching', 'region_code' => 'tagalog',    'score' => 10, 'max_score' => 40],
+    ['game' => 'matching', 'region_code' => 'cebuano',    'score' => 10, 'max_score' => 40],
+    ['game' => 'matching', 'region_code' => 'hiligaynon', 'score' => 10, 'max_score' => 40],
+], 0, 0), ['island_hopper']);
+check('2 regions only = no Island Hopper', $rules->badges_for([
+    ['game' => 'matching',  'region_code' => 'tagalog', 'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'region_code' => 'cebuano', 'score' => 10, 'max_score' => 50],
+], 0, 0), []);
+check('everything earned, fixed order', $rules->badges_for([
+    ['game' => 'matching',  'region_code' => 'tagalog',    'score' => 40, 'max_score' => 40],
+    ['game' => 'listening', 'region_code' => 'cebuano',    'score' => 50, 'max_score' => 50],
+    ['game' => 'matching',  'region_code' => 'hiligaynon', 'score' => 10, 'max_score' => 40],
+], 3, 5), ['first_stamp', 'sailor_3', 'gold_catcher', 'sharp_ears', 'island_hopper']);
+
+echo "quests_for (today's attempts)\n";
+check('no attempts today: no quest done', $rules->quests_for([]),
+      ['play_one' => false, 'pass_one' => false, 'both_games' => false]);
+check('one failed matching: play only', $rules->quests_for([
+    ['game' => 'matching', 'score' => 10, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => false, 'both_games' => false]);
+check('one passed matching: play and pass', $rules->quests_for([
+    ['game' => 'matching', 'score' => 30, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => false]);
+check('both games, both failed: play and both', $rules->quests_for([
+    ['game' => 'matching',  'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'score' => 10, 'max_score' => 50],
+]), ['play_one' => true, 'pass_one' => false, 'both_games' => true]);
+check('both games, one passed: all three', $rules->quests_for([
+    ['game' => 'matching',  'score' => 10, 'max_score' => 40],
+    ['game' => 'listening', 'score' => 40, 'max_score' => 50],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => true]);
+check('two matching rounds is not both games', $rules->quests_for([
+    ['game' => 'matching', 'score' => 40, 'max_score' => 40],
+    ['game' => 'matching', 'score' => 40, 'max_score' => 40],
+]), ['play_one' => true, 'pass_one' => true, 'both_games' => false]);
+check('unknown game ignored', $rules->quests_for([
+    ['game' => 'flashcards', 'score' => 99, 'max_score' => 99],
+]), ['play_one' => false, 'pass_one' => false, 'both_games' => false]);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);
