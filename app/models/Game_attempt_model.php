@@ -14,6 +14,8 @@ class Game_attempt_model extends Model
 {
     protected $table       = 'game_attempts';
     protected $primary_key = 'id';
+    // The app writes dates itself, in UTC (DEC-82); the framework must not add its own
+    protected $timestamps = false;
 
     // Columns that insert() may write; id is set by MySQL.
     // created_at is written in UTC from PHP so it does not depend on the MySQL server's time zone.

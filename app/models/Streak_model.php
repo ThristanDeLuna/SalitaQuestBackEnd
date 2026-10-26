@@ -21,6 +21,8 @@ class Streak_model extends Model
     // user_id is the primary key (not auto-increment), so the built-in
     // find(), update() and delete() all work by user_id
     protected $primary_key = 'user_id';
+    // The app writes dates itself, in UTC (DEC-82); the framework must not add its own
+    protected $timestamps = false;
 
     // Columns that insert()/update() may write; user_id must be listed because we supply it
     protected $fillable = ['user_id', 'current_streak', 'longest_streak', 'last_active_date'];
