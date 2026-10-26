@@ -1,8 +1,10 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
-// Base class for every JSON endpoint. A child controller file starts with:
-//   require_once __DIR__ . '/ApiController.php';
+// Base class for every JSON endpoint. LavaLust loads every app/kernel/MY_*.php file
+// at boot (scheme/kernel/LavaLust.php), before the Router loads a controller, so a
+// controller just writes "class X extends ApiController" with no require.
+// Keep the MY_ prefix in the file name (config: subclass_prefix).
 class ApiController extends Controller
 {
     /** Set by require_login(): ['id' => int, 'role' => string] */
