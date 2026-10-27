@@ -93,7 +93,8 @@ class Cloudinary_lib
                 'url'       => $result['secure_url'],
             ];
         }
-        catch (\Exception $e)
+        // \Throwable also catches PHP Errors, not only Exceptions
+        catch (\Throwable $e)
         {
             return $this->fail('upload_audio', $e, 'Audio upload failed');
         }
@@ -129,7 +130,7 @@ class Cloudinary_lib
             // url is NULL because the file no longer exists
             return ['public_id' => $public_id, 'url' => NULL];
         }
-        catch (\Exception $e)
+        catch (\Throwable $e)
         {
             return $this->fail('delete', $e, 'Audio delete failed');
         }
@@ -140,7 +141,7 @@ class Cloudinary_lib
      *
      * TODO: switch error_log() to Api_logger::log() after PR #8 merges (DEC-25).
      */
-    private function fail($method, \Exception $e, $message)
+    private function fail($method, \Throwable $e, $message)
     {
         // Hide the secret in case it ever appears in an SDK message
         $detail = str_replace($this->secret, '[hidden]', $e->getMessage());
