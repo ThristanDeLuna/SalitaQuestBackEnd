@@ -24,3 +24,7 @@ runtime/*
 
 # OS
 Thumbs.db
+
+
+#untracking
+tools/
