@@ -1,0 +1,9 @@
+{
+    "name": "salita-quest/sq-backend",
+    "description": "Salita Quest backend (LavaLust 4.7.0). Composer manages third-party libraries only; vendor/ is not committed.",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "cloudinary/cloudinary_php": "^3.3"
+    }
+}
