@@ -62,6 +62,12 @@ $router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
 $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 // ---- end Member D ----
 
+// ---- Member C ----
+$router->get('/api/admin/audio', 'AdminAudio::index');
+$router->post('/api/admin/audio/{word_id}', 'AdminAudio::upload');
+$router->delete('/api/admin/audio/{word_id}', 'AdminAudio::remove');
+// ---- end Member C ----
+
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
