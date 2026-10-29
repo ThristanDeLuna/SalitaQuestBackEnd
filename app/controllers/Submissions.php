@@ -14,6 +14,7 @@ class Submissions extends ApiController   // no require: MY_ApiController is loa
         $this->config->load('submissions');             // app/config/submissions.php (check exact call in LavaLust docs)
         $this->call->model('Submission_model');         // load BEFORE any transaction (connection finding)
         $this->call->library('mymemory_lib');
+        $this->call->library('brevo_lib');              // emails (never throws)
     }
 
     // GET /api/submissions/suggest?word=&region_code=
@@ -85,23 +86,57 @@ class Submissions extends ApiController   // no require: MY_ApiController is loa
         $this->api->respond(['id' => (int) $id, 'withdrawn' => true]);
     }
 
-    // ---- STUBS: replaced in the next slice ----
+    // GET /api/admin/submissions?status=pending : the approval queue (admin only)
     public function admin_list()
     {
         $this->require_role(['admin']);
-        $this->api->respond(['stub' => true, 'data' => []]);
+        $q      = $this->api->get_query_params();
+        $status = $q['status'] ?? 'pending';
+
+        // The model returns [] for an unknown status; the API should say what is wrong
+        if (!in_array($status, Submission_model::STATUSES, true)) {
+            $this->api->respond_error('Unknown status', 422);
+        }
+        $this->api->respond(['status' => $status, 'data' => $this->Submission_model->list_by_status($status)]);
     }
 
+    // ---- STUB: replaced when B's Word_model exists ----
     public function approve($id)
     {
         $this->require_role(['admin']);
         $this->api->respond(['stub' => true, 'id' => (int) $id, 'status' => 'approved']);
     }
 
+    // POST /api/admin/submissions/{id}/reject   body: reason (optional, up to 255 characters)
     public function reject($id)
     {
-        $this->require_role(['admin']);
-        $this->api->respond(['stub' => true, 'id' => (int) $id, 'status' => 'rejected']);
+        $admin  = $this->require_role(['admin']);
+        $b      = $this->api->body();
+        $reason = $b['reason'] ?? null;
+
+        if ($reason !== null) {
+            if (!is_string($reason) || mb_strlen($reason) > 255) {
+                $this->api->respond_error('Reason must be at most 255 characters', 422);
+            }
+            if ($reason === '') $reason = null;      // empty means no reason
+        }
+
+        $row = $this->Submission_model->find_with_user((int) $id);   // has user_name, user_email
+        if (!$row) {
+            $this->api->respond_error('Not found', 404);
+        }
+
+        // Save the decision FIRST. The model only changes a PENDING row, so 0 means
+        // it was already decided (for example, another admin clicked first).
+        if (!$this->Submission_model->mark_rejected((int) $id, $admin['id'], $reason)) {
+            $this->api->respond_error('This suggestion was already decided', 409);
+        }
+
+        // Then email. A failed email never undoes the decision.
+        $mail = $this->brevo_lib->rejected_email($row['word'], $reason ?? '');
+        $sent = $this->brevo_lib->send($row['user_email'] ?? '', $row['user_name'] ?? '', $mail['subject'], $mail['html']);
+
+        $this->api->respond(['id' => (int) $id, 'status' => 'rejected', 'email_sent' => $sent]);
     }
 
     // Shared check for word and region (private: not a route)
