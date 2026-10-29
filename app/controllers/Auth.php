@@ -4,7 +4,6 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 class Auth extends ApiController
 {
     // Test login for one of three fixed users. Local use only.
-        // Test login for one of three fixed users. Local use only.
     public function dev_login()
     {
         // Second lock, in case the route ever exists by mistake.
@@ -31,7 +30,7 @@ class Auth extends ApiController
         $this->token_response($user);
     }
 
-        // GET /auth/me: who am I? Proves the token and the database lookup work.
+    // GET /auth/me: who am I? Proves the token and the database lookup work.
     public function me()
     {
         $this->api->require_method('GET');
@@ -41,7 +40,6 @@ class Auth extends ApiController
     }
 
     // POST /auth/google: exchange a Google ID token for our own tokens.
-        // POST /auth/google: exchange a Google ID token for our own tokens.
     public function google()
     {
         $this->api->require_method('POST');
@@ -79,5 +77,28 @@ class Auth extends ApiController
         }
 
         $this->token_response($user);
+    }
+
+    // POST /auth/refresh: swap a valid refresh token for a new pair.
+    // The library checks the signature, the type, the database row and the user,
+    // deletes the old row (so each refresh token works once) and answers by itself.
+    public function refresh()
+    {
+        $this->api->require_method('POST');
+        $body = $this->api->body();
+        $this->api->refresh_access_token((string) ($body['refresh_token'] ?? ''));
+    }
+
+    // POST /auth/logout: delete the refresh token so it can never be used again.
+    // Always answers 200, so calling it twice is harmless.
+    public function logout()
+    {
+        $this->api->require_method('POST');
+        $body = $this->api->body();
+        $rt = (string) ($body['refresh_token'] ?? '');
+        if ($rt !== '') {
+            $this->api->revoke_refresh_token($rt);
+        }
+        $this->api->respond(['message' => 'Signed out']);
     }
 }
