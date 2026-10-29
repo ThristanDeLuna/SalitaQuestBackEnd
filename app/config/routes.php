@@ -45,7 +45,6 @@
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
-$router->get('/health', 'Health::index');
 if (getenv('APP_ENV') === 'development') {
     $router->post('/auth/dev-login', 'Auth::dev_login');
 }
