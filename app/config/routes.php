@@ -62,6 +62,11 @@ $router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
 $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 // ---- end Member D ----
 
+// ---- Member C ----
+$router->get('/api/games/matching/{region}', 'Games::matching_round');
+$router->post('/api/games/matching/{region}/submit', 'Games::matching_submit');
+// ---- end Member C ----
+
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
