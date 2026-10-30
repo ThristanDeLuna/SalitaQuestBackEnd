@@ -37,11 +37,12 @@ class Submission_model extends Model
                        . 's.mymemory_text, s.status, s.reviewed_by, s.reviewed_at, '
                        . 's.reject_reason, s.created_at, u.name AS user_name, u.email AS user_email';
 
-    public function __construct()
+       public function __construct()
     {
         parent::__construct();
-        // The database is not autoloaded (DEC-11); this returns the shared connection
-        $this->call->database();
+        // Load once per request: call->database() cannot tell it is already loaded,
+        // and every call would open a NEW connection (DEC-89, DEC-102).
+        if ( ! array_key_exists('db', lava_instance()->properties)) { $this->call->database(); }
     }
 
     /**
