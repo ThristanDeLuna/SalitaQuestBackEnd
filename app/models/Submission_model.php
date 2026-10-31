@@ -37,7 +37,7 @@ class Submission_model extends Model
                        . 's.mymemory_text, s.status, s.reviewed_by, s.reviewed_at, '
                        . 's.reject_reason, s.created_at, u.name AS user_name, u.email AS user_email';
 
-       public function __construct()
+    public function __construct()
     {
         parent::__construct();
         // Load once per request: call->database() cannot tell it is already loaded,
