@@ -24,8 +24,9 @@ class Word_model extends Model
     public function __construct()
     {
         parent::__construct();
-        // The database is not autoloaded (DEC-11); this returns the shared connection
-        $this->call->database();
+                          // The database is not autoloaded (DEC-11); load it here so the model can query.
+           // Each call->database() opens its own connection (D's test, DEC-89).
+           $this->call->database();
     }
 
     /**
