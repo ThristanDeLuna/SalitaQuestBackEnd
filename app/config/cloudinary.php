@@ -27,4 +27,5 @@ $config['cloudinary_api_key']    = getenv('CLOUDINARY_API_KEY') ?: '';
 $config['cloudinary_api_secret'] = getenv('CLOUDINARY_API_SECRET') ?: '';
 
 // Cloudinary folder where word audio is stored (not a secret)
-$config['cloudinary_folder']     = 'salitaquest/audio';
+// Folder for word audio. Local .env uses a different folder so tests never overwrite real audio.
+$config['cloudinary_folder']     = getenv('CLOUDINARY_FOLDER') ?: 'salitaquest/audio';

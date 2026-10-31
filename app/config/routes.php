@@ -45,7 +45,6 @@
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
-$router->get('/health', 'Health::index');
 if (getenv('APP_ENV') === 'development') {
     $router->post('/auth/dev-login', 'Auth::dev_login');
 }
@@ -63,6 +62,12 @@ $router->get('/api/admin/submissions', 'Submissions::admin_list');
 $router->post('/api/admin/submissions/{id}/approve', 'Submissions::approve');
 $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 // ---- end Member D ----
+
+// ---- Member C ----
+$router->get('/api/admin/audio', 'AdminAudio::index');
+$router->post('/api/admin/audio/{word_id}', 'AdminAudio::upload');
+$router->delete('/api/admin/audio/{word_id}', 'AdminAudio::remove');
+// ---- end Member C ----
 
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
