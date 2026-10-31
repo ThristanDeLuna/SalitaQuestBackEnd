@@ -55,6 +55,8 @@ $router->post('/auth/refresh', 'Auth::refresh');
 $router->post('/auth/logout', 'Auth::logout');
 
 // ---- Member D ----
+$router->get('/api/submissions/suggest', 'Submissions::suggest');
+$router->delete('/api/submissions/{id}', 'Submissions::withdraw');
 $router->post('/api/submissions', 'Submissions::create');
 $router->get('/api/submissions', 'Submissions::mine');
 $router->get('/api/admin/submissions', 'Submissions::admin_list');
