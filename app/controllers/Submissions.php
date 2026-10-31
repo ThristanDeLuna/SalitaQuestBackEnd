@@ -22,7 +22,8 @@ class Submissions extends ApiController   // no require: MY_ApiController is loa
     {
         $this->require_role(['contributor', 'admin']);
         $q      = $this->api->get_query_params();
-        $word   = $q['word'] ?? '';
+        // trim first: a word made only of spaces must count as empty
+        $word   = is_string($q['word'] ?? null) ? trim($q['word']) : '';
         $region = $q['region_code'] ?? '';
 
         $this->check_word($word, $region);
@@ -35,9 +36,10 @@ class Submissions extends ApiController   // no require: MY_ApiController is loa
         $user = $this->require_role(['contributor', 'admin']);
         $b = $this->api->body();
 
+        // trim first (A's review of #25): "   " must not pass the checks
         $region  = $b['region_code'] ?? '';
-        $word    = $b['word'] ?? '';
-        $meaning = $b['suggested_translation'] ?? '';
+        $word    = is_string($b['word'] ?? null) ? trim($b['word']) : '';
+        $meaning = is_string($b['suggested_translation'] ?? null) ? trim($b['suggested_translation']) : '';
         $hint    = $b['mymemory_text'] ?? null;        // the client echoes what MyMemory said
 
         $this->check_word($word, $region);
