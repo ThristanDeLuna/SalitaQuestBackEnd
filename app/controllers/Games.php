@@ -87,6 +87,11 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         $result = $this->game_rules->score_round($key, $submitted);
         $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
 
+        // Stars added by this attempt and the pass mark. $state['attempts'] was read
+        // before this attempt is saved, so it holds only the EARLIER attempts.
+        $stars_gained = $this->game_rules->stars_gained($state['attempts'], $region, 'matching', $result['score']);
+        $pass_mark    = $this->game_rules->pass_mark($result['max_score']);
+
         // ---- save (attempt, stamp, streak) ----
         $outcome      = $this->save_result($user, $region, 'matching', $result, $state);
         $stamp_earned = $outcome['stamp_earned'];
@@ -111,7 +116,9 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'correct'      => $result['correct'],
             'total'        => $result['total'],
             'passed'       => $result['passed'],
+            'pass_mark'    => $pass_mark,
             'medal'        => $medal,
+            'stars_gained' => $stars_gained,
             'stamp_earned' => $stamp_earned,
             'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
             'results'      => $results,
@@ -181,6 +188,11 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         $result = $this->game_rules->score_round($key, $submitted);
         $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
 
+        // Stars added by this attempt and the pass mark. $state['attempts'] was read
+        // before this attempt is saved, so it holds only the EARLIER attempts.
+        $stars_gained = $this->game_rules->stars_gained($state['attempts'], $region, 'listening', $result['score']);
+        $pass_mark    = $this->game_rules->pass_mark($result['max_score']);
+
         // ---- save (attempt, stamp, streak) ----
         $outcome      = $this->save_result($user, $region, 'listening', $result, $state);
         $stamp_earned = $outcome['stamp_earned'];
@@ -205,7 +217,9 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'correct'      => $result['correct'],
             'total'        => $result['total'],
             'passed'       => $result['passed'],
+            'pass_mark'    => $pass_mark,
             'medal'        => $medal,
+            'stars_gained' => $stars_gained,
             'stamp_earned' => $stamp_earned,
             'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
             'results'      => $results,
