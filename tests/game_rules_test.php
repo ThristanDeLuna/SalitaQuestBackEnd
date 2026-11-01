@@ -332,5 +332,46 @@ foreach (['', '2026-10-32', '2026-02-30', '28-10-2026', '2026-10-28 00:00:00', '
 }
 check('a bad $today throws InvalidArgumentException (7 cases)', $bad_today, array_fill(0, 7, true));
 
+echo "pass_mark (lowest passing score, integer maths)\n";
+check('max 40 -> 24', $rules->pass_mark(40), 24);
+check('max 50 -> 30', $rules->pass_mark(50), 30);
+check('max 1 -> 1',   $rules->pass_mark(1), 1);
+check('max 0 -> 0 (an empty round never passes)', $rules->pass_mark(0), 0);
+check('max -5 -> 0', $rules->pass_mark(-5), 0);
+$edge = [];
+for ($m = 1; $m <= 100; $m++) {
+    $p = $rules->pass_mark($m);
+    if (!$rules->is_pass($p, $m) || $rules->is_pass($p - 1, $m)) $edge[] = $m;
+}
+check('max 1..100: is_pass(pass_mark) true and is_pass(pass_mark - 1) false', $edge, []);
+
+echo "stars_gained (only the part above the earlier best counts)\n";
+$m30 = ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 30, 'max_score' => 40];
+check('never played: the whole score',          $rules->stars_gained([], 'tagalog', 'matching', 30), 30);
+check('never played, score 0: 0',               $rules->stars_gained([], 'tagalog', 'matching', 0), 0);
+check('replay lower (20 after 30): 0',          $rules->stars_gained([$m30], 'tagalog', 'matching', 20), 0);
+check('replay equal (30 after 30): 0',          $rules->stars_gained([$m30], 'tagalog', 'matching', 30), 0);
+check('replay higher (40 after 30): 10',        $rules->stars_gained([$m30], 'tagalog', 'matching', 40), 10);
+check('best of several earlier (10, 30, 20) then 40: 10', $rules->stars_gained([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 10, 'max_score' => 40],
+    $m30,
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 20, 'max_score' => 40],
+], 'tagalog', 'matching', 40), 10);
+check('a FAILED earlier attempt counts (20/50 then 40: 20)', $rules->stars_gained([
+    ['game' => 'listening', 'region_code' => 'tagalog', 'score' => 20, 'max_score' => 50],
+], 'tagalog', 'listening', 40), 20);
+check('same region, other game is independent (matching 40 earlier, listening 30: 30)', $rules->stars_gained([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => 40, 'max_score' => 40],
+], 'tagalog', 'listening', 30), 30);
+check('other region, same game is independent (cebuano 40 earlier, tagalog 30: 30)', $rules->stars_gained([
+    ['game' => 'matching', 'region_code' => 'cebuano', 'score' => 40, 'max_score' => 40],
+], 'tagalog', 'matching', 30), 30);
+check('unknown game rows are ignored', $rules->stars_gained([
+    ['game' => 'flashcards', 'region_code' => 'tagalog', 'score' => 99, 'max_score' => 99],
+], 'tagalog', 'matching', 30), 30);
+check('string scores (database rows) work', $rules->stars_gained([
+    ['game' => 'matching', 'region_code' => 'tagalog', 'score' => '30', 'max_score' => '40'],
+], 'tagalog', 'matching', '40'), 10);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);

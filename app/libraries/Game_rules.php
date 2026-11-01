@@ -76,6 +76,48 @@ class Game_rules
     }
 
     /**
+     * The lowest score that passes a round of this size (the "pass mark").
+     * It is the smallest whole score where is_pass() says yes:
+     * score * 100 >= 60 * max_score. Integer maths only (no floats):
+     * adding 99 before dividing by 100 rounds UP, e.g. 40 -> 24 and 50 -> 30.
+     * A round with no points (max_score 0 or less) can never be passed, so it
+     * has no real pass mark; we return 0 for it.
+     *
+     * @return int
+     */
+    public function pass_mark($max_score)
+    {
+        $max_score = (int) $max_score;
+        if ($max_score <= 0) {
+            return 0; // empty round: is_pass() is always false anyway
+        }
+        return intdiv(self::PASS_PERCENT * $max_score + 99, 100);
+    }
+
+    /**
+     * How many stars THIS attempt adds (DEC-59, DEC-73).
+     * Stars are the best score per region and game, so a new attempt only adds
+     * the part above the player's earlier best. Earlier failed attempts count too.
+     *   never played this game in this region -> the whole score
+     *   lower or equal to the earlier best    -> 0
+     *   higher than the earlier best          -> only the difference
+     *
+     * @param array  $earlier_attempts Rows for ONE user from BEFORE this attempt, each
+     *                                 with 'game', 'region_code', 'score' and 'max_score'.
+     * @param string $region_code      Region of this attempt.
+     * @param string $game             'matching' or 'listening'.
+     * @param int    $score            Score of this attempt.
+     * @return int 0 or more
+     */
+    public function stars_gained(array $earlier_attempts, $region_code, $game, $score)
+    {
+        // best_scores() gives null when this game was never played in this region
+        $best     = $this->best_scores($earlier_attempts);
+        $previous = isset($best[$region_code][$game]) ? $best[$region_code][$game]['best'] : 0;
+        return max(0, (int) $score - $previous);
+    }
+
+    /**
      * Which medal does one score earn? (DEC-59)
      * bronze = a pass (60%+), silver = 80%+, gold = full marks, null = not a pass.
      * Same integer maths as is_pass(): no float rounding.
