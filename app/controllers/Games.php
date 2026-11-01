@@ -2,7 +2,8 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /**
- * Member C: the Matching and Listening games (get a round, submit answers).
+ * Member C: the Matching and Listening games (get a round, submit answers)
+ * and the Passport summary (GET /api/me/summary).
  * Thin controller: it checks the request, calls the models and libraries, and answers.
  * The rules live in Game_rules and Round_builder; all queries live in the models.
  */
@@ -208,6 +209,78 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'stamp_earned' => $stamp_earned,
             'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
             'results'      => $results,
+        ]);
+    }
+
+    // GET /api/me/summary : the Passport. Reads only: no writes, no transaction.
+    public function summary()
+    {
+        $user  = $this->require_login();                // any role
+        $state = $this->region_state($user);            // words, audio, ready regions, attempts
+        $today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
+
+        $stamped = array_column($this->Stamp_model->for_user($user['id']), 'region_code');
+        $row     = $this->Streak_model->find_by_user($user['id']);
+        $longest = $row ? (int) $row['longest_streak'] : 0;
+        $best    = $this->game_rules->best_scores($state['attempts']);
+
+        // One entry per region, in the configured order
+        $regions = [];
+        foreach (config_item('game_regions') as $code) {
+            $has_stamp = in_array($code, $stamped, true);
+            $can_play  = $this->game_rules->can_play_region($code, $state['started_regions'], $state['stamp_count'],
+                                                           $state['ready_regions'], $state['skip_lock']);
+            $matching  = $best[$code]['matching'] ?? null;
+            $listening = $best[$code]['listening'] ?? null;
+
+            // Stickers: the region's words, shown only once its stamp is earned
+            $stickers = ['unlocked' => $has_stamp, 'total' => count($state['words'][$code])];
+            if ($has_stamp) {
+                $stickers['words'] = [];
+                foreach ($state['words'][$code] as $w) {
+                    $url = $state['audio'][$code][$w['id']] ?? null;
+                    $stickers['words'][] = [
+                        'id'          => (int) $w['id'],
+                        'word'        => $w['word'],
+                        'translation' => $w['translation'],
+                        'audio_url'   => trim((string) $url) === '' ? null : $url,   // blank counts as no audio
+                    ];
+                }
+            }
+
+            $regions[] = [
+                'code'         => $code,
+                'status'       => $this->game_rules->region_status($has_stamp, in_array($code, $state['ready_regions'], true),
+                                                                   in_array($code, $state['started_regions'], true), $can_play),
+                'games_passed' => (int) ($matching !== null && $matching['medal'] !== null)
+                                + (int) ($listening !== null && $listening['medal'] !== null),
+                'matching'     => $matching,
+                'listening'    => $listening,
+                'stickers'     => $stickers,
+            ];
+        }
+
+        // Badges in the fixed order, each with earned true/false
+        $earned = $this->game_rules->badges_for($state['attempts'], count($stamped), $longest);
+        $badges = [];
+        foreach (Game_rules::BADGE_IDS as $key) {
+            $badges[] = ['key' => $key, 'earned' => in_array($key, $earned, true)];
+        }
+
+        $this->api->respond([
+            'stars'        => $this->game_rules->stars_for($state['attempts']),
+            'max_stars'    => count(config_item('game_regions'))
+                            * (Game_rules::MATCHING_PAIRS + Game_rules::LISTENING_QUESTIONS) * Game_rules::POINTS_PER_CORRECT,
+            'streak'       => [
+                'current'          => $this->game_rules->streak_for_display($row ? $row['last_active_date'] : null,
+                                                                            $row ? $row['current_streak'] : 0, $today),
+                'longest'          => $longest,
+                'last_active_date' => $row ? $row['last_active_date'] : null,
+                'week'             => $this->game_rules->active_days_in_week($state['attempts'], $today),
+            ],
+            'regions'      => $regions,
+            'badges'       => $badges,
+            'quests_today' => $this->game_rules->quests_for($this->Game_attempt_model->today_for_user($user['id'], $today)),
         ]);
     }
 
