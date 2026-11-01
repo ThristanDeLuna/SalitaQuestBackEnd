@@ -2,7 +2,7 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /**
- * Member C: the Matching game (get a round, submit answers).
+ * Member C: the Matching and Listening games (get a round, submit answers).
  * Thin controller: it checks the request, calls the models and libraries, and answers.
  * The rules live in Game_rules and Round_builder; all queries live in the models.
  */
@@ -104,6 +104,100 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
 
         $this->api->respond([
             'game'         => 'matching',
+            'region'       => $region,
+            'score'        => $result['score'],
+            'max_score'    => $result['max_score'],
+            'correct'      => $result['correct'],
+            'total'        => $result['total'],
+            'passed'       => $result['passed'],
+            'medal'        => $medal,
+            'stamp_earned' => $stamp_earned,
+            'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
+            'results'      => $results,
+        ]);
+    }
+
+    // GET /api/games/listening/{region} : one quiz. Audio and options only, never the answer or the word text.
+    public function listening_round($region)
+    {
+        $user  = $this->require_login();                // any role
+        $state = $this->open_region($region, $user);
+
+        try {
+            $round = $this->round_builder->listening($this->round_words($state, $region), Game_rules::LISTENING_QUESTIONS);
+        } catch (InvalidArgumentException $e) {
+            // Too few words with audio, or too few different meanings: no fair quiz yet
+            $this->deny('This region is coming soon', 'coming_soon');
+        }
+
+        $this->api->respond([
+            'game'      => 'listening',
+            'region'    => $region,
+            'questions' => $round['questions'],
+        ]);
+    }
+
+    // POST /api/games/listening/{region}/submit   body: {"answers": [{"word_id": 7, "choice": "..."}, x5]}
+    public function listening_submit($region)
+    {
+        $user  = $this->require_login();
+        $state = $this->open_region($region, $user);
+        $body  = $this->api->body();
+
+        // ---- validate (422 names the field) ----
+        $answers = $body['answers'] ?? null;
+        if (!is_array($answers) || !array_is_list($answers) || count($answers) !== Game_rules::LISTENING_QUESTIONS) {
+            $this->api->respond_error('answers must be a list of ' . Game_rules::LISTENING_QUESTIONS . ' items', 422);
+        }
+        $translations = array_column($state['words'][$region], 'translation', 'id'); // word_id => right meaning
+        $submitted    = [];                                                          // word_id => player's choice
+        foreach ($answers as $i => $a) {
+            if (!is_array($a)) {
+                $this->api->respond_error("answers[$i] must be an object", 422);
+            }
+            $word_id = $a['word_id'] ?? null;
+            $choice  = $a['choice'] ?? null;
+            if (!is_int($word_id)) {
+                $this->api->respond_error("answers[$i].word_id must be an integer", 422);
+            }
+            if (!is_string($choice) || mb_strlen($choice) > 255) {
+                $this->api->respond_error("answers[$i].choice must be a string of at most 255 characters", 422);
+            }
+            if (array_key_exists($word_id, $submitted)) {
+                $this->api->respond_error("answers[$i].word_id is repeated", 422);
+            }
+            // Only words a quiz can ask: of this region AND with audio (same rule as
+            // Round_builder::listening(): a URL of only spaces counts as no audio)
+            if (!array_key_exists($word_id, $translations)
+                || trim((string) ($state['audio'][$region][$word_id] ?? '')) === '') {
+                $this->api->respond_error("answers[$i].word_id is not a listening word of this region", 422);
+            }
+            $submitted[$word_id] = $choice;
+        }
+
+        // ---- score ----
+        $key    = array_intersect_key($translations, $submitted); // the answer key, built from the database
+        $result = $this->game_rules->score_round($key, $submitted);
+        $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
+
+        // ---- save (attempt, stamp, streak) ----
+        $outcome      = $this->save_result($user, $region, 'listening', $result, $state);
+        $stamp_earned = $outcome['stamp_earned'];
+        $streak       = $outcome['streak'];
+
+        // ---- answer ----
+        $results = [];
+        foreach ($submitted as $word_id => $choice) {
+            $results[] = [
+                'word_id'      => $word_id,
+                'your_choice'  => $choice,
+                'right_choice' => $key[$word_id],
+                'correct'      => (string) $choice === (string) $key[$word_id],
+            ];
+        }
+
+        $this->api->respond([
+            'game'         => 'listening',
             'region'       => $region,
             'score'        => $result['score'],
             'max_score'    => $result['max_score'],
