@@ -45,7 +45,6 @@
 /** @var object $router **/
 
 $router->get('/', 'Welcome::index');
-$router->get('/health', 'Health::index');
 if (getenv('APP_ENV') === 'development') {
     $router->post('/auth/dev-login', 'Auth::dev_login');
 }
@@ -55,6 +54,8 @@ $router->post('/auth/refresh', 'Auth::refresh');
 $router->post('/auth/logout', 'Auth::logout');
 
 // ---- Member D ----
+$router->get('/api/submissions/suggest', 'Submissions::suggest');
+$router->delete('/api/submissions/{id}', 'Submissions::withdraw');
 $router->post('/api/submissions', 'Submissions::create');
 $router->get('/api/submissions', 'Submissions::mine');
 $router->get('/api/admin/submissions', 'Submissions::admin_list');
@@ -63,6 +64,9 @@ $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 // ---- end Member D ----
 
 // ---- Member C ----
+$router->get('/api/admin/audio', 'AdminAudio::index');
+$router->post('/api/admin/audio/{word_id}', 'AdminAudio::upload');
+$router->delete('/api/admin/audio/{word_id}', 'AdminAudio::remove');
 $router->get('/api/games/matching/{region}', 'Games::matching_round');
 $router->post('/api/games/matching/{region}/submit', 'Games::matching_submit');
 // ---- end Member C ----

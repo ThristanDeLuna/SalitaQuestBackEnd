@@ -14,11 +14,17 @@ class Api_logger
                         bool $success, ?int $duration_ms = null, ?int $user_id = null): void
     {
         try {
-            $this->_lava->call->database(); $this->_lava->db->raw(
-                'INSERT INTO api_logs (service, endpoint, status_code, success, duration_ms, user_id)
-                 VALUES (?, ?, ?, ?, ?, ?)',
-                [$service, $endpoint, $status_code, $success ? 1 : 0, $duration_ms, $user_id]
-            );
+    // Load the DB only if this request has not done it yet (see DEC-89).
+    if ( ! array_key_exists('db', $this->_lava->properties)) { $this->_lava->call->database(); }
+    // Query Builder insert, no raw SQL.
+    $this->_lava->db->table('api_logs')->insert([
+        'service'     => $service,
+        'endpoint'    => $endpoint,
+        'status_code' => $status_code,
+        'success'     => $success ? 1 : 0,
+        'duration_ms' => $duration_ms,
+        'user_id'     => $user_id,
+    ]);
         } catch (Throwable $e) {
             // Same fallback C's Cloudinary library uses until this exists.
             error_log('api_logs insert failed for service ' . $service);
