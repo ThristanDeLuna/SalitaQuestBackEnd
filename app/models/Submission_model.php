@@ -40,8 +40,9 @@ class Submission_model extends Model
     public function __construct()
     {
         parent::__construct();
-        // The database is not autoloaded (DEC-11); this returns the shared connection
-        $this->call->database();
+        // Load once per request: call->database() cannot tell it is already loaded,
+        // and every call would open a NEW connection (DEC-89, DEC-102).
+        if ( ! array_key_exists('db', lava_instance()->properties)) { $this->call->database(); }
     }
 
     /**

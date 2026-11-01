@@ -67,6 +67,8 @@ $router->post('/api/admin/submissions/{id}/reject', 'Submissions::reject');
 $router->get('/api/admin/audio', 'AdminAudio::index');
 $router->post('/api/admin/audio/{word_id}', 'AdminAudio::upload');
 $router->delete('/api/admin/audio/{word_id}', 'AdminAudio::remove');
+$router->get('/api/games/matching/{region}', 'Games::matching_round');
+$router->post('/api/games/matching/{region}/submit', 'Games::matching_submit');
 // ---- end Member C ----
 
 $router->get('db/migrate',  'MigrationController::migrate');
