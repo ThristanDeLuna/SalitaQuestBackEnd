@@ -11,6 +11,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  *
  * Load in a controller with: $this->call->library('round_builder');
  * Then use:                  $this->round_builder->matching($words);
+ *                            $this->round_builder->listening($words);
  */
 class Round_builder
 {
@@ -114,6 +115,100 @@ class Round_builder
             'words'    => $fish,
             'meanings' => $meanings,
         ];
+    }
+
+    /**
+     * Build one Listening round: the player hears a word and picks its meaning
+     * from a few options (DEC-90, DEC-91).
+     *
+     * Rules:
+     *   - Questions use only words with audio (a non-empty audio_url), picked at
+     *     random, never the same word twice.
+     *   - Each question has $options options: the word's own translation once,
+     *     plus wrong options from the translations of other words of the region.
+     *     Words without audio may give wrong options. Meanings are compared without
+     *     case and outer spaces, so no two options of a question mean the same.
+     *   - Options are shuffled. The result never shows the word text or which
+     *     option is right. The caller builds the answer key from its own rows:
+     *     the right option is the translation of the question's word_id.
+     *
+     * @param array $words     Rows with 'id', 'word', 'translation' and optional 'audio_url'
+     *                         (all the words of ONE region, same shape as matching()).
+     * @param int   $questions How many questions (default 5).
+     * @param int   $options   How many options per question (default 4).
+     * @return array 'questions' => list of
+     *                 ['word_id' => int, 'audio_url' => string, 'options' => [string, ...]]
+     * @throws InvalidArgumentException if fewer than $questions words have audio, or
+     *                                  fewer than $options different meanings.
+     */
+    public function listening(array $words, $questions = 5, $options = 4)
+    {
+        $questions = (int) $questions;
+        $options   = (int) $options;
+
+        if ($questions < 1) {
+            throw new InvalidArgumentException('A listening round needs at least 1 question.');
+        }
+        if ($options < 2) {
+            throw new InvalidArgumentException('A listening question needs at least 2 options.');
+        }
+        foreach ($words as $w) {
+            if (!is_array($w) || !isset($w['id'], $w['word'], $w['translation'])) {
+                throw new InvalidArgumentException("Every word needs 'id', 'word' and 'translation'.");
+            }
+        }
+
+        // Shuffle once: the questions and the text used for each meaning are random.
+        $pool = array_values($words);
+        shuffle($pool);
+
+        // One text per different meaning (meaning key => text), for the wrong options.
+        $meaning_text = [];
+        foreach ($pool as $w) {
+            $key = $this->meaning_key($w['translation']);
+            if (!isset($meaning_text[$key])) {
+                $meaning_text[$key] = (string) $w['translation'];
+            }
+        }
+        // The word's own meaning is one of these, so every question has
+        // count - 1 wrong meanings to choose from.
+        if (count($meaning_text) < $options) {
+            throw new InvalidArgumentException("A listening round needs $options different meanings.");
+        }
+
+        // The questions: only words the player can hear.
+        $heard = [];
+        foreach ($pool as $w) {
+            if (isset($w['audio_url']) && trim((string) $w['audio_url']) !== '') {
+                $heard[] = $w;
+            }
+        }
+        if (count($heard) < $questions) {
+            throw new InvalidArgumentException("A listening round needs at least $questions words with audio.");
+        }
+
+        $round = [];
+        foreach (array_slice($heard, 0, $questions) as $w) {
+            // Wrong options: any other meaning. Leaving out the right meaning's key
+            // also leaves out words that mean the same ("Love" vs " love").
+            $wrong = $meaning_text;
+            unset($wrong[$this->meaning_key($w['translation'])]);
+            $wrong = array_values($wrong);
+            shuffle($wrong);
+
+            $choices   = array_slice($wrong, 0, $options - 1);
+            $choices[] = (string) $w['translation'];
+            shuffle($choices); // so the right one is not always last
+
+            // Only id, audio and options. The word text and translation stay on the server.
+            $round[] = [
+                'word_id'   => (int) $w['id'],
+                'audio_url' => (string) $w['audio_url'],
+                'options'   => $choices,
+            ];
+        }
+
+        return ['questions' => $round];
     }
 
     /**

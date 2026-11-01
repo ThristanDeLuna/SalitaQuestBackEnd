@@ -211,5 +211,178 @@ for ($i = 0; $i < RUNS && !$decoy_early; $i++) {
 }
 check('decoys are not always the last fish', $decoy_early, true);
 
+// ---------------------------------------------------------------- listening
+
+// $heard words with audio (ids 1..$heard), then $silent words without audio.
+// Silent words alternate between no audio_url key and an empty one.
+function listening_words($heard, $silent = 0)
+{
+    $words = sample_words($heard + $silent);
+    for ($i = $heard; $i < $heard + $silent; $i++) {
+        if ($i % 2 === 0) {
+            unset($words[$i]['audio_url']);
+        } else {
+            $words[$i]['audio_url'] = '';
+        }
+    }
+    return $words;
+}
+
+// Check the rules every listening round must follow. Returns '' when fine, else what went wrong.
+function listening_problem(array $round, array $words, $questions, $options)
+{
+    $by_id = [];
+    foreach ($words as $w) {
+        $by_id[(int) $w['id']] = $w;
+    }
+
+    if (array_keys($round) !== ['questions'])           return 'result keys: ' . json_encode(array_keys($round));
+    if (count($round['questions']) !== $questions)       return 'questions: ' . count($round['questions']);
+    if (array_keys($round['questions']) !== range(0, $questions - 1)) return 'questions is not a plain list';
+
+    $ids = [];
+    foreach ($round['questions'] as $q) {
+        if (array_keys($q) !== ['word_id', 'audio_url', 'options']) return 'question keys: ' . json_encode(array_keys($q));
+        if (!is_int($q['word_id']))                       return 'word_id is not an int';
+        if (!isset($by_id[$q['word_id']]))                 return "word_id {$q['word_id']} is not from the input";
+        $w = $by_id[$q['word_id']];
+        $ids[] = $q['word_id'];
+
+        $in_audio = isset($w['audio_url']) ? trim((string) $w['audio_url']) : '';
+        if ($in_audio === '')                              return "word {$q['word_id']} has no audio but is a question";
+        if ($q['audio_url'] !== $w['audio_url'])           return "audio_url of {$q['word_id']} does not match the input";
+
+        if (count($q['options']) !== $options)            return 'options: ' . count($q['options']);
+        if (array_keys($q['options']) !== range(0, $options - 1)) return 'options is not a plain list';
+        foreach ($q['options'] as $o) {
+            if (!is_string($o))                            return 'an option is not a string';
+            if ($o === $w['word'])                         return 'the word text is an option';
+        }
+
+        $keys = array_map('key_of', $q['options']);
+        if (count(array_unique($keys)) !== count($keys))   return 'duplicate options: ' . json_encode($q['options']);
+        $right = key_of($w['translation']);
+        $hits  = count(array_keys($keys, $right, true));
+        if ($hits !== 1)                                   return "right meaning appears $hits times";
+        if (!in_array((string) $w['translation'], $q['options'], true)) return "the word's own translation text is missing";
+
+        // Every option must be a meaning of the region.
+        $region_keys = array_map(function ($x) { return key_of($x['translation']); }, $words);
+        foreach ($keys as $k) {
+            if (!in_array($k, $region_keys, true))         return "option '$k' is not a meaning of the region";
+        }
+    }
+    if (count(array_unique($ids)) !== count($ids))         return 'a word is asked twice';
+
+    return '';
+}
+
+// Run one listening case RUNS times; return the first problem found, or ''.
+function run_listening($builder, array $words, $questions = 5, $options = 4)
+{
+    for ($i = 0; $i < RUNS; $i++) {
+        $problem = listening_problem($builder->listening($words, $questions, $options), $words, $questions, $options);
+        if ($problem !== '') {
+            return "run $i: $problem";
+        }
+    }
+    return '';
+}
+
+echo "listening: counts and rules (each case " . RUNS . " runs)\n";
+check('10 audio words: 5 questions, 4 options, all rules', run_listening($builder, listening_words(10)), '');
+check('exactly 5 audio words + 5 silent: all rules',      run_listening($builder, listening_words(5, 5)), '');
+check('5 audio words only (5 meanings): all rules',       run_listening($builder, listening_words(5)), '');
+check('10 audio words, 3 questions, 6 options',           run_listening($builder, listening_words(10), 3, 6), '');
+
+echo "listening: words without audio\n";
+// 5 heard words (ids 1..5) and 15 silent ones (ids 6..20).
+$mixed   = listening_words(5, 15);
+$silent  = [];
+foreach (array_slice($mixed, 5) as $w) {
+    $silent[key_of($w['translation'])] = (int) $w['id'];
+}
+$silent_asked  = false;
+$silent_option = false;
+for ($i = 0; $i < RUNS; $i++) {
+    foreach ($builder->listening($mixed)['questions'] as $q) {
+        $silent_asked = $silent_asked || in_array($q['word_id'], $silent, true);
+        foreach ($q['options'] as $o) {
+            $silent_option = $silent_option || isset($silent[key_of($o)]);
+        }
+    }
+}
+check('a word without audio is never a question',        $silent_asked, false);
+check('a word without audio may give a wrong option',     $silent_option, true);
+check('mixed audio: all rules',                           run_listening($builder, $mixed), '');
+// A space-only audio_url counts as no audio.
+$spaces = listening_words(5, 0);
+$spaces[] = ['id' => 6, 'word' => 'salita6', 'translation' => 'meaning 6', 'audio_url' => '   '];
+$asked_6 = false;
+for ($i = 0; $i < RUNS; $i++) {
+    $asked_6 = $asked_6 || in_array(6, array_column($builder->listening($spaces)['questions'], 'word_id'), true);
+}
+check('a space-only audio_url is never a question',      $asked_6, false);
+
+echo "listening: nothing leaks the answer\n";
+$r = $builder->listening(listening_words(10));
+check('result keys are exactly questions', array_keys($r), ['questions']);
+$keys_ok = true;
+foreach ($r['questions'] as $q) {
+    $keys_ok = $keys_ok && array_keys($q) === ['word_id', 'audio_url', 'options'];
+}
+check('every question has exactly word_id, audio_url, options', $keys_ok, true);
+check('options are plain strings', array_map('gettype', $r['questions'][0]['options']), ['string', 'string', 'string', 'string']);
+
+echo "listening: it is random\n";
+$words      = listening_words(10);
+$right_at   = [];   // index of the right option => true
+$id_orders  = [];
+for ($i = 0; $i < RUNS; $i++) {
+    $r = $builder->listening($words);
+    $id_orders[json_encode(array_column($r['questions'], 'word_id'))] = true;
+    foreach ($r['questions'] as $q) {
+        $right_at[array_search($words[$q['word_id'] - 1]['translation'], $q['options'], true)] = true;
+    }
+}
+check('the right option is not always at the same index', count($right_at) > 1, true);
+check('the right option shows up at every index over ' . RUNS . ' runs', count($right_at), 4);
+check('same input gives different questions over ' . RUNS . ' runs', count($id_orders) > 1, true);
+
+echo "listening: not enough words\n";
+$all_threw = true;
+for ($i = 0; $i < RUNS; $i++) {
+    // 4 heard words: 20 words in all, but only 4 with audio.
+    $all_threw = $all_threw && throws_invalid(function () use ($builder) { $builder->listening(listening_words(4, 16)); });
+}
+check('fewer than 5 audio words: always throws', $all_threw, true);
+check('0 words: throws', throws_invalid(function () use ($builder) { $builder->listening([]); }), true);
+
+// 8 heard words but only 3 different meanings: love x3, water x3, fire x2.
+$three_meanings = [];
+foreach (['Love', 'love ', ' LOVE', 'water', 'Water', 'WATER ', 'fire', 'Fire'] as $i => $t) {
+    $three_meanings[] = ['id' => $i + 1, 'word' => "w$i", 'translation' => $t, 'audio_url' => "https://example.test/$i.mp3"];
+}
+$all_threw = true;
+for ($i = 0; $i < RUNS; $i++) {
+    $all_threw = $all_threw && throws_invalid(function () use ($builder, $three_meanings) { $builder->listening($three_meanings); });
+}
+check('only 3 different meanings: always throws', $all_threw, true);
+
+echo "listening: duplicate meanings (different letter case and spaces)\n";
+// 9 words, 6 different meanings: love x3 (all with audio), water x2, fire, earth, sky, sun.
+$dupes = [
+    ['id' => 1, 'word' => 'mahal',  'translation' => 'Love',   'audio_url' => 'https://example.test/1.mp3'],
+    ['id' => 2, 'word' => 'irog',   'translation' => 'love ',  'audio_url' => 'https://example.test/2.mp3'],
+    ['id' => 3, 'word' => 'sinta',  'translation' => ' LOVE',  'audio_url' => 'https://example.test/3.mp3'],
+    ['id' => 4, 'word' => 'tubig',  'translation' => 'water',  'audio_url' => 'https://example.test/4.mp3'],
+    ['id' => 5, 'word' => 'danum',  'translation' => 'Water'],
+    ['id' => 6, 'word' => 'apoy',   'translation' => 'fire',   'audio_url' => 'https://example.test/6.mp3'],
+    ['id' => 7, 'word' => 'lupa',   'translation' => 'earth'],
+    ['id' => 8, 'word' => 'langit', 'translation' => 'sky',    'audio_url' => ''],
+    ['id' => 9, 'word' => 'araw',   'translation' => 'sun'],
+];
+check('two words with the same meaning are never both options', run_listening($builder, $dupes), '');
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);
