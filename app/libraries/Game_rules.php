@@ -23,6 +23,9 @@ class Game_rules
     const MIN_WORDS           = 4;  // a region needs this many words (matching has 4 pairs)
     const MIN_AUDIO_WORDS     = 5;  // ...and this many words with audio (listening has 5 questions)
 
+    // Every badge, in the fixed order the Passport shows them (badges_for() uses the same order)
+    const BADGE_IDS = ['first_stamp', 'sailor_3', 'gold_catcher', 'sharp_ears', 'island_hopper'];
+
     /**
      * Score one round of either game.
      *
@@ -120,6 +123,49 @@ class Game_rules
         }
 
         return array_sum($best);
+    }
+
+    /**
+     * The best attempt per region and game, for the Passport (DEC-59).
+     * Same "best score" idea as stars_for(), but kept per region with its medal.
+     * On a tie the first attempt seen is kept.
+     *
+     * @param array $attempts Rows for ONE user, each with 'game', 'region_code',
+     *                        'score' and 'max_score'. Other games are ignored.
+     * @return array region_code => ['matching' => best|null, 'listening' => best|null],
+     *               where best = ['best' => int, 'max' => int, 'medal' => string|null].
+     *               Only regions that appear in the attempts.
+     */
+    public function best_scores(array $attempts)
+    {
+        $out = [];
+
+        foreach ($attempts as $a) {
+            $game = isset($a['game']) ? $a['game'] : null;
+            if ($game !== 'matching' && $game !== 'listening') {
+                continue; // ignore anything that is not one of our two games
+            }
+            $region = isset($a['region_code']) ? (string) $a['region_code'] : '';
+            if (!isset($out[$region])) {
+                $out[$region] = ['matching' => null, 'listening' => null];
+            }
+            $score = (int) $a['score'];
+            // Only a strictly higher score replaces the best, so a tie keeps the first
+            if ($out[$region][$game] === null || $score > $out[$region][$game]['best']) {
+                $out[$region][$game] = ['best' => $score, 'max' => (int) $a['max_score']];
+            }
+        }
+
+        // The medal of each best attempt
+        foreach ($out as $region => $games) {
+            foreach ($games as $game => $b) {
+                if ($b !== null) {
+                    $out[$region][$game]['medal'] = $this->medal($b['best'], $b['max']);
+                }
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -246,6 +292,30 @@ class Game_rules
     }
 
     /**
+     * The status the Passport shows for one region. Checked in this order:
+     *   stamped     - the player has the region's stamp
+     *   coming_soon - the region is not ready (too few words or audio)
+     *   in_progress - the player has played it
+     *   not_started - the player may start it (see can_play_region())
+     *   locked      - the soft lock keeps it closed for now
+     *
+     * @return string one of the five values above
+     */
+    public function region_status($has_stamp, $is_ready, $started, $can_play)
+    {
+        if ($has_stamp) {
+            return 'stamped';
+        }
+        if (!$is_ready) {
+            return 'coming_soon';
+        }
+        if ($started) {
+            return 'in_progress';
+        }
+        return $can_play ? 'not_started' : 'locked';
+    }
+
+    /**
      * Has the player earned the stamp for a region?
      * Rule: at least one passing matching attempt AND one passing listening attempt.
      * A failed attempt is still saved (it counts for the streak) but never counts here.
@@ -310,6 +380,33 @@ class Game_rules
     }
 
     /**
+     * The CURRENT streak to show on the Passport. A read never writes, so the
+     * stored streak is not changed here; we only decide whether it still counts.
+     *   never played                    -> 0
+     *   last active today or yesterday  -> the stored current streak
+     *   last active before yesterday    -> 0 (the streak has lapsed)
+     *   last active date in the future  -> the stored current streak (clock oddity)
+     * Dates are compared the same way as in update_streak().
+     *
+     * @param string|null $last_active_date 'Y-m-d' or null
+     * @param int         $current          Stored current streak.
+     * @param string      $today            'Y-m-d' (Asia/Manila), passed in.
+     * @return int
+     */
+    public function streak_for_display($last_active_date, $current, $today)
+    {
+        if ($last_active_date === null || $last_active_date === '') {
+            return 0; // never played
+        }
+        $last = new DateTimeImmutable($last_active_date);
+        $now  = new DateTimeImmutable($today);
+        // Whole days between the two dates (negative if the stored date is in the future).
+        $days = (int) $last->diff($now)->format('%r%a');
+
+        return $days <= 1 ? (int) $current : 0;
+    }
+
+    /**
      * Pick the Word of the Day from the date alone. Nothing is stored and no
      * scheduler runs: every user gets the same word on the same date, and it
      * rotates through the list one word per day.
@@ -330,5 +427,48 @@ class Game_rules
         $index = $days_since_epoch % count($word_ids);
 
         return $word_ids[$index];
+    }
+
+    /**
+     * The week dots on the Passport: which days of THIS week (Monday to Sunday,
+     * in Manila) the player played at least once.
+     *
+     * @param array  $attempts Rows for ONE user, each with 'created_at' in UTC
+     *                         ('Y-m-d H:i:s', DEC-82). Rows with a missing or bad
+     *                         created_at are skipped, never an error.
+     * @param string $today    'Y-m-d', today's date in Asia/Manila, passed in.
+     * @return array 7 items, Monday first: ['date' => 'Y-m-d', 'day' => 'M', 'active' => bool]
+     * @throws InvalidArgumentException if $today is not a real Y-m-d date
+     */
+    public function active_days_in_week(array $attempts, $today)
+    {
+        // Strict parse, like Game_attempt_model::today_for_user(): '!' sets 00:00:00
+        $manila = new DateTimeZone('Asia/Manila');
+        $day    = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $today, $manila);
+        if ($day === false || $day->format('Y-m-d') !== $today) {
+            throw new InvalidArgumentException('today must be Y-m-d');
+        }
+
+        // The Manila dates on which the player played (date => true)
+        $utc    = new DateTimeZone('UTC');
+        $played = [];
+        foreach ($attempts as $a) {
+            $raw = isset($a['created_at']) && is_string($a['created_at']) ? $a['created_at'] : '';
+            $at  = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw, $utc);
+            if ($at === false || $at->format('Y-m-d H:i:s') !== $raw) {
+                continue; // missing or not a real date-time: skip the row
+            }
+            $played[$at->setTimezone($manila)->format('Y-m-d')] = true;
+        }
+
+        // Monday of this week: 'N' is 1 (Monday) to 7 (Sunday)
+        $monday = $day->modify('-' . ((int) $day->format('N') - 1) . ' days');
+        $letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        $week    = [];
+        foreach ($letters as $i => $letter) {
+            $date   = $monday->modify("+$i days")->format('Y-m-d');
+            $week[] = ['date' => $date, 'day' => $letter, 'active' => isset($played[$date])];
+        }
+        return $week;
     }
 }
