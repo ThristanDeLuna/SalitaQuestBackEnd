@@ -85,48 +85,11 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         $key    = array_intersect_key($translations, $submitted); // the answer key, built from the database
         $result = $this->game_rules->score_round($key, $submitted);
         $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
-        $today  = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
 
-        // ---- reads first ----
-        // In this framework a failed READ (get/get_all) shows an error page and
-        // exits instead of throwing, so our catch below could not roll it back.
-        // So every read happens here, before the transaction, and the
-        // transaction holds only writes, which do throw.
-        $region_attempts = array_values(array_filter($state['attempts'], function ($a) use ($region) {
-            return $a['region_code'] === $region;
-        }));
-        $region_attempts[] = ['game' => 'matching', 'score' => $result['score'], 'max_score' => $result['max_score']];
-        $wins_stamp = $this->game_rules->earns_stamp($region_attempts)
-                   && !$this->Stamp_model->has_stamp($user['id'], $region);
-
-        $row    = $this->Streak_model->find_by_user($user['id']);
-        $streak = $this->game_rules->update_streak(
-            $row ? $row['last_active_date'] : null,
-            $row ? $row['current_streak'] : 0,
-            $row ? $row['longest_streak'] : 0,
-            $today
-        );
-
-        // ---- one transaction, writes only ----
-        $stamp_earned = false;
-        try {
-            $this->db->transaction();
-            $this->Game_attempt_model->create($user['id'], $region, 'matching',
-                                              $result['score'], $result['max_score'], $result['passed']);
-            if ($wins_stamp) {
-                // 'duplicate' means another request already gave it: not an error
-                $stamp_earned = isset($this->Stamp_model->award($user['id'], $region)['id']);
-            }
-            $saved = $row ? null : $this->Streak_model->create($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
-            if ($row || isset($saved['error'])) {
-                $this->Streak_model->save_streak($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
-            }
-            $this->db->commit();
-        } catch (Throwable $e) {
-            try { $this->db->roll_back(); } catch (Throwable $ignored) {} // the transaction may not have started
-            error_log('Games::matching_submit failed for user ' . $user['id'] . ': ' . $e->getMessage());
-            $this->api->respond_error('Could not save your game. Please try again.', 500);
-        }
+        // ---- save (attempt, stamp, streak) ----
+        $outcome      = $this->save_result($user, $region, 'matching', $result, $state);
+        $stamp_earned = $outcome['stamp_earned'];
+        $streak       = $outcome['streak'];
 
         // ---- answer ----
         $results = [];
@@ -152,6 +115,58 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
             'results'      => $results,
         ]);
+    }
+
+    // Save one finished game: the attempt, the stamp if it is earned now, and the streak.
+    // Shared by every game's submit (rubric criterion 10: thin controller). All reads
+    // happen before the transaction, which holds writes only (DEC-111).
+    // Returns ['stamp_earned' => bool, 'streak' => what update_streak returned]; on a failed write it answers 500.
+    private function save_result(array $user, $region, $game, array $result, array $state)
+    {
+        $today  = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
+
+        // ---- reads first ----
+        // In this framework a failed READ (get/get_all) shows an error page and
+        // exits instead of throwing, so our catch below could not roll it back.
+        // So every read happens here, before the transaction, and the
+        // transaction holds only writes, which do throw.
+        $region_attempts = array_values(array_filter($state['attempts'], function ($a) use ($region) {
+            return $a['region_code'] === $region;
+        }));
+        $region_attempts[] = ['game' => $game, 'score' => $result['score'], 'max_score' => $result['max_score']];
+        $wins_stamp = $this->game_rules->earns_stamp($region_attempts)
+                   && !$this->Stamp_model->has_stamp($user['id'], $region);
+
+        $row    = $this->Streak_model->find_by_user($user['id']);
+        $streak = $this->game_rules->update_streak(
+            $row ? $row['last_active_date'] : null,
+            $row ? $row['current_streak'] : 0,
+            $row ? $row['longest_streak'] : 0,
+            $today
+        );
+
+        // ---- one transaction, writes only ----
+        $stamp_earned = false;
+        try {
+            $this->db->transaction();
+            $this->Game_attempt_model->create($user['id'], $region, $game,
+                                              $result['score'], $result['max_score'], $result['passed']);
+            if ($wins_stamp) {
+                // 'duplicate' means another request already gave it: not an error
+                $stamp_earned = isset($this->Stamp_model->award($user['id'], $region)['id']);
+            }
+            $saved = $row ? null : $this->Streak_model->create($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
+            if ($row || isset($saved['error'])) {
+                $this->Streak_model->save_streak($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            try { $this->db->roll_back(); } catch (Throwable $ignored) {} // the transaction may not have started
+            error_log('Games::' . $game . '_submit failed for user ' . $user['id'] . ': ' . $e->getMessage());
+            $this->api->respond_error('Could not save your game. Please try again.', 500);
+        }
+
+        return ['stamp_earned' => $stamp_earned, 'streak' => $streak];
     }
 
     // 404 unknown region, 403 coming_soon or locked; otherwise the region state
