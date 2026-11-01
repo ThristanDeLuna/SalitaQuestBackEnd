@@ -140,4 +140,30 @@ class Word_model extends Model
     {
         return $this->delete_where(['id' => $id]);
     }
+
+    /**
+     * Read: the words with the URL of their recording (NULL when there is none).
+     * Used by the public word list and by the "ready" counts. One query, no loop.
+     * (Criterion 4 Query Builder: left_join, where, order_by)
+     *
+     * order_by() keeps only its last call, so the rows are sorted by word only.
+     *
+     * @param string|null $region_code only this region, or NULL for all regions
+     * @return array rows: id, region_code, word, translation, example_sentence, audio_url
+     */
+    public function with_audio($region_code = NULL)
+    {
+        $query = $this->db->table('words')
+                          ->select('words.id, words.region_code, words.word, words.translation, words.example_sentence, audio.url AS audio_url')
+                          ->left_join('audio', 'audio.word_id = words.id');
+
+        if ($region_code !== NULL && $region_code !== '')
+        {
+            $query->where('words.region_code', $region_code);
+        }
+
+        return $query->order_by('words.word', 'ASC')->get_all() ?: [];
+    }
+
+    
 }
