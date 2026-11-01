@@ -2,7 +2,7 @@
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /**
- * Member C: the Matching game (get a round, submit answers).
+ * Member C: the Matching and Listening games (get a round, submit answers).
  * Thin controller: it checks the request, calls the models and libraries, and answers.
  * The rules live in Game_rules and Round_builder; all queries live in the models.
  */
@@ -85,48 +85,11 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         $key    = array_intersect_key($translations, $submitted); // the answer key, built from the database
         $result = $this->game_rules->score_round($key, $submitted);
         $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
-        $today  = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
 
-        // ---- reads first ----
-        // In this framework a failed READ (get/get_all) shows an error page and
-        // exits instead of throwing, so our catch below could not roll it back.
-        // So every read happens here, before the transaction, and the
-        // transaction holds only writes, which do throw.
-        $region_attempts = array_values(array_filter($state['attempts'], function ($a) use ($region) {
-            return $a['region_code'] === $region;
-        }));
-        $region_attempts[] = ['game' => 'matching', 'score' => $result['score'], 'max_score' => $result['max_score']];
-        $wins_stamp = $this->game_rules->earns_stamp($region_attempts)
-                   && !$this->Stamp_model->has_stamp($user['id'], $region);
-
-        $row    = $this->Streak_model->find_by_user($user['id']);
-        $streak = $this->game_rules->update_streak(
-            $row ? $row['last_active_date'] : null,
-            $row ? $row['current_streak'] : 0,
-            $row ? $row['longest_streak'] : 0,
-            $today
-        );
-
-        // ---- one transaction, writes only ----
-        $stamp_earned = false;
-        try {
-            $this->db->transaction();
-            $this->Game_attempt_model->create($user['id'], $region, 'matching',
-                                              $result['score'], $result['max_score'], $result['passed']);
-            if ($wins_stamp) {
-                // 'duplicate' means another request already gave it: not an error
-                $stamp_earned = isset($this->Stamp_model->award($user['id'], $region)['id']);
-            }
-            $saved = $row ? null : $this->Streak_model->create($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
-            if ($row || isset($saved['error'])) {
-                $this->Streak_model->save_streak($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
-            }
-            $this->db->commit();
-        } catch (Throwable $e) {
-            try { $this->db->roll_back(); } catch (Throwable $ignored) {} // the transaction may not have started
-            error_log('Games::matching_submit failed for user ' . $user['id'] . ': ' . $e->getMessage());
-            $this->api->respond_error('Could not save your game. Please try again.', 500);
-        }
+        // ---- save (attempt, stamp, streak) ----
+        $outcome      = $this->save_result($user, $region, 'matching', $result, $state);
+        $stamp_earned = $outcome['stamp_earned'];
+        $streak       = $outcome['streak'];
 
         // ---- answer ----
         $results = [];
@@ -152,6 +115,152 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
             'results'      => $results,
         ]);
+    }
+
+    // GET /api/games/listening/{region} : one quiz. Audio and options only, never the answer or the word text.
+    public function listening_round($region)
+    {
+        $user  = $this->require_login();                // any role
+        $state = $this->open_region($region, $user);
+
+        try {
+            $round = $this->round_builder->listening($this->round_words($state, $region), Game_rules::LISTENING_QUESTIONS);
+        } catch (InvalidArgumentException $e) {
+            // Too few words with audio, or too few different meanings: no fair quiz yet
+            $this->deny('This region is coming soon', 'coming_soon');
+        }
+
+        $this->api->respond([
+            'game'      => 'listening',
+            'region'    => $region,
+            'questions' => $round['questions'],
+        ]);
+    }
+
+    // POST /api/games/listening/{region}/submit   body: {"answers": [{"word_id": 7, "choice": "..."}, x5]}
+    public function listening_submit($region)
+    {
+        $user  = $this->require_login();
+        $state = $this->open_region($region, $user);
+        $body  = $this->api->body();
+
+        // ---- validate (422 names the field) ----
+        $answers = $body['answers'] ?? null;
+        if (!is_array($answers) || !array_is_list($answers) || count($answers) !== Game_rules::LISTENING_QUESTIONS) {
+            $this->api->respond_error('answers must be a list of ' . Game_rules::LISTENING_QUESTIONS . ' items', 422);
+        }
+        $translations = array_column($state['words'][$region], 'translation', 'id'); // word_id => right meaning
+        $submitted    = [];                                                          // word_id => player's choice
+        foreach ($answers as $i => $a) {
+            if (!is_array($a)) {
+                $this->api->respond_error("answers[$i] must be an object", 422);
+            }
+            $word_id = $a['word_id'] ?? null;
+            $choice  = $a['choice'] ?? null;
+            if (!is_int($word_id)) {
+                $this->api->respond_error("answers[$i].word_id must be an integer", 422);
+            }
+            if (!is_string($choice) || mb_strlen($choice) > 255) {
+                $this->api->respond_error("answers[$i].choice must be a string of at most 255 characters", 422);
+            }
+            if (array_key_exists($word_id, $submitted)) {
+                $this->api->respond_error("answers[$i].word_id is repeated", 422);
+            }
+            // Only words a quiz can ask: of this region AND with audio (same rule as
+            // Round_builder::listening(): a URL of only spaces counts as no audio)
+            if (!array_key_exists($word_id, $translations)
+                || trim((string) ($state['audio'][$region][$word_id] ?? '')) === '') {
+                $this->api->respond_error("answers[$i].word_id is not a listening word of this region", 422);
+            }
+            $submitted[$word_id] = $choice;
+        }
+
+        // ---- score ----
+        $key    = array_intersect_key($translations, $submitted); // the answer key, built from the database
+        $result = $this->game_rules->score_round($key, $submitted);
+        $medal  = $this->game_rules->medal($result['score'], $result['max_score']);
+
+        // ---- save (attempt, stamp, streak) ----
+        $outcome      = $this->save_result($user, $region, 'listening', $result, $state);
+        $stamp_earned = $outcome['stamp_earned'];
+        $streak       = $outcome['streak'];
+
+        // ---- answer ----
+        $results = [];
+        foreach ($submitted as $word_id => $choice) {
+            $results[] = [
+                'word_id'      => $word_id,
+                'your_choice'  => $choice,
+                'right_choice' => $key[$word_id],
+                'correct'      => (string) $choice === (string) $key[$word_id],
+            ];
+        }
+
+        $this->api->respond([
+            'game'         => 'listening',
+            'region'       => $region,
+            'score'        => $result['score'],
+            'max_score'    => $result['max_score'],
+            'correct'      => $result['correct'],
+            'total'        => $result['total'],
+            'passed'       => $result['passed'],
+            'medal'        => $medal,
+            'stamp_earned' => $stamp_earned,
+            'streak'       => ['current' => $streak['current'], 'longest' => $streak['longest']],
+            'results'      => $results,
+        ]);
+    }
+
+    // Save one finished game: the attempt, the stamp if it is earned now, and the streak.
+    // Shared by every game's submit (rubric criterion 10: thin controller). All reads
+    // happen before the transaction, which holds writes only (DEC-111).
+    // Returns ['stamp_earned' => bool, 'streak' => what update_streak returned]; on a failed write it answers 500.
+    private function save_result(array $user, $region, $game, array $result, array $state)
+    {
+        $today  = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
+
+        // ---- reads first ----
+        // In this framework a failed READ (get/get_all) shows an error page and
+        // exits instead of throwing, so our catch below could not roll it back.
+        // So every read happens here, before the transaction, and the
+        // transaction holds only writes, which do throw.
+        $region_attempts = array_values(array_filter($state['attempts'], function ($a) use ($region) {
+            return $a['region_code'] === $region;
+        }));
+        $region_attempts[] = ['game' => $game, 'score' => $result['score'], 'max_score' => $result['max_score']];
+        $wins_stamp = $this->game_rules->earns_stamp($region_attempts)
+                   && !$this->Stamp_model->has_stamp($user['id'], $region);
+
+        $row    = $this->Streak_model->find_by_user($user['id']);
+        $streak = $this->game_rules->update_streak(
+            $row ? $row['last_active_date'] : null,
+            $row ? $row['current_streak'] : 0,
+            $row ? $row['longest_streak'] : 0,
+            $today
+        );
+
+        // ---- one transaction, writes only ----
+        $stamp_earned = false;
+        try {
+            $this->db->transaction();
+            $this->Game_attempt_model->create($user['id'], $region, $game,
+                                              $result['score'], $result['max_score'], $result['passed']);
+            if ($wins_stamp) {
+                // 'duplicate' means another request already gave it: not an error
+                $stamp_earned = isset($this->Stamp_model->award($user['id'], $region)['id']);
+            }
+            $saved = $row ? null : $this->Streak_model->create($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
+            if ($row || isset($saved['error'])) {
+                $this->Streak_model->save_streak($user['id'], $streak['current'], $streak['longest'], $streak['last_active_date']);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            try { $this->db->roll_back(); } catch (Throwable $ignored) {} // the transaction may not have started
+            error_log('Games::' . $game . '_submit failed for user ' . $user['id'] . ': ' . $e->getMessage());
+            $this->api->respond_error('Could not save your game. Please try again.', 500);
+        }
+
+        return ['stamp_earned' => $stamp_earned, 'streak' => $streak];
     }
 
     // 404 unknown region, 403 coming_soon or locked; otherwise the region state
