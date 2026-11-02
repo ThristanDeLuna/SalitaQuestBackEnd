@@ -62,3 +62,5 @@ INSERT IGNORE INTO words (region_code, word, translation, example_sentence, crea
 ('hiligaynon', 'Adlaw',    'Sun',    'Mainit ang adlaw.',              UTC_TIMESTAMP()),
 ('hiligaynon', 'Kan-on',   'Rice',   'Gusto ko sang kan-on.',          UTC_TIMESTAMP()),
 ('hiligaynon', 'Palangga', 'Love',   'Palangga ko ikaw.',              UTC_TIMESTAMP());
+
+UPDATE regions SET name = 'Cebuano' WHERE code = 'cebuano';
