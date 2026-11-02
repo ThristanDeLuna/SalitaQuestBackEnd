@@ -83,4 +83,13 @@ $router->get('db/rollback', 'MigrationController::rollback');
 $router->get('/api/regions', 'Regions::index');
 $router->get('/api/regions/{code}', 'Regions::show');
 $router->get('/api/regions/{code}/words', 'Regions::words');
+// Admin only (require_role in the controller): CRUD for words and regions
+$router->get('/api/admin/words', 'AdminWords::index');
+$router->post('/api/admin/words', 'AdminWords::create');
+$router->put('/api/admin/words/{id}', 'AdminWords::update');
+$router->delete('/api/admin/words/{id}', 'AdminWords::remove');
+$router->post('/api/admin/regions', 'AdminRegions::create');
+$router->put('/api/admin/regions/{code}', 'AdminRegions::update');
+$router->delete('/api/admin/regions/{code}', 'AdminRegions::remove');
+
 // ---- end Member B ----

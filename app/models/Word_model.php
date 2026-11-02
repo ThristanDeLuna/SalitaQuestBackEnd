@@ -110,28 +110,47 @@ class Word_model extends Model
     }
 
     /**
-     * Update: change the translation and example sentence of one word.
-     * (Criterion 5 Update, via update_where())
+     * Update: change the translation and example sentence of one word, and
+     * optionally its spelling. (Criterion 5 Update, via update_where())
      *
-     * The word text and region are NOT changed here: audio is tied to the word's
-     * id, and B's rule is that a recorded word is not renamed.
+     * The region is NEVER changed here. The spelling ($word) is only written when
+     * it is passed; the controller must refuse (409) to rename a word that has a
+     * recording, because B's rule is that a recorded word is not renamed.
      *
+     * @param string|null $word NULL keeps the spelling as it is
      * @return int rows changed (0 if the id does not exist or nothing changed)
      */
-    public function update_details($id, $translation, $example_sentence = NULL)
+    public function update_details($id, $translation, $example_sentence = NULL, $word = NULL)
     {
-        return $this->update_where(
-            ['id' => $id],
-            [
-                'translation'      => $translation,
-                'example_sentence' => ($example_sentence === '' ? NULL : $example_sentence),
-            ]
-        );
+        $data = [
+            'translation'      => $translation,
+            'example_sentence' => ($example_sentence === '' ? NULL : $example_sentence),
+        ];
+        if ($word !== NULL) { $data['word'] = $word; }
+
+        return $this->update_where(['id' => $id], $data);
+    }
+
+    /**
+     * Read: the row of one word in one region, or FALSE. Used to tell "this word
+     * already exists" from "this is the same row" when a word is renamed. The
+     * comparison uses MySQL's collation (case and accents are ignored), so do NOT
+     * lowercase the word in PHP first. (Criterion 4 Query Builder: where, get)
+     *
+     * @return array|false
+     */
+    public function find_in_region($region_code, $word)
+    {
+        return $this->db->table($this->table)
+                        ->where('region_code', $region_code)
+                        ->where('word', $word)
+                        ->get();
     }
 
     /**
      * Delete: remove one word. (Criterion 5 Delete, via delete_where())
-     * The controller must delete its audio first (Audio_model::remove_by_word).
+     * The controller refuses (409) while the word still has a recording (DEC-115),
+     * so a recording is never left without its word.
      *
      * @return int rows deleted (0 or 1)
      */
