@@ -77,3 +77,10 @@ $router->get('/api/me/summary', 'Games::summary');
 $router->get('db/migrate',  'MigrationController::migrate');
 $router->get('db/status',   'MigrationController::status');
 $router->get('db/rollback', 'MigrationController::rollback');
+
+
+// ---- Member B ----
+$router->get('/api/regions', 'Regions::index');
+$router->get('/api/regions/{code}', 'Regions::show');
+$router->get('/api/regions/{code}/words', 'Regions::words');
+// ---- end Member B ----
