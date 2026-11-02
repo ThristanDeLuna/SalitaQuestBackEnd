@@ -43,3 +43,24 @@ INSERT IGNORE INTO words (region_code, word, translation, example_sentence) VALU
 ('hiligaynon', 'Tubig',   'Water',              'Gusto ko sang tubig.'),
 ('hiligaynon', 'Matahom', 'Beautiful',          'Matahom ang bulak.'),
 ('hiligaynon', 'Kaon',    'Eat',                'Kaon na kita.');
+
+-- Words 6 to 10 of each region (Nov 2). Same 10 concepts per region.
+-- INSERT IGNORE: safe to run again (UNIQUE region_code + word). Unchecked drafts until a speaker confirms them.
+INSERT IGNORE INTO words (region_code, word, translation, example_sentence, created_at) VALUES
+('tagalog',    'Bahay',    'House',  'Malaki ang bahay.',              UTC_TIMESTAMP()),
+('tagalog',    'Kaibigan', 'Friend', 'Kaibigan ko siya.',              UTC_TIMESTAMP()),
+('tagalog',    'Araw',     'Sun',    'Mainit ang araw.',               UTC_TIMESTAMP()),
+('tagalog',    'Kanin',    'Rice',   'Gusto ko ng kanin.',             UTC_TIMESTAMP()),
+('tagalog',    'Pag-ibig', 'Love',   'May pag-ibig sa pamilya namin.', UTC_TIMESTAMP()),
+('cebuano',    'Balay',    'House',  'Dako ang balay.',                UTC_TIMESTAMP()),
+('cebuano',    'Higala',   'Friend', 'Higala nako siya.',              UTC_TIMESTAMP()),
+('cebuano',    'Adlaw',    'Sun',    'Init kaayo ang adlaw.',          UTC_TIMESTAMP()),
+('cebuano',    'Kan-on',   'Rice',   'Gusto ko og kan-on.',            UTC_TIMESTAMP()),
+('cebuano',    'Gugma',    'Love',   'Dako ang gugma sa pamilya.',     UTC_TIMESTAMP()),
+('hiligaynon', 'Balay',    'House',  'Dako ang balay.',                UTC_TIMESTAMP()),
+('hiligaynon', 'Abyan',    'Friend', 'Abyan ko sia.',                  UTC_TIMESTAMP()),
+('hiligaynon', 'Adlaw',    'Sun',    'Mainit ang adlaw.',              UTC_TIMESTAMP()),
+('hiligaynon', 'Kan-on',   'Rice',   'Gusto ko sang kan-on.',          UTC_TIMESTAMP()),
+('hiligaynon', 'Palangga', 'Love',   'Palangga ko ikaw.',              UTC_TIMESTAMP());
+
+UPDATE regions SET name = 'Cebuano' WHERE code = 'cebuano';
