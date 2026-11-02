@@ -24,9 +24,8 @@ class Word_model extends Model
     public function __construct()
     {
         parent::__construct();
-                          // The database is not autoloaded (DEC-11); load it here so the model can query.
-           // Each call->database() opens its own connection (D's test, DEC-89).
-           $this->call->database();
+        // Load once per request: call->database() cannot tell it is already loaded.
+        if ( ! array_key_exists('db', lava_instance()->properties)) { $this->call->database(); }
     }
 
     /**
