@@ -88,7 +88,11 @@ class AdminRegions extends ApiController
         {
             $this->api->respond_error('This region still has words. Delete them first.', 409);
         }
-
+        // Stamps, game results and suggestions also store the code (no foreign keys)
+        if (array_sum($this->Region_model->count_dependents($row['code'])) > 0)
+        {
+            $this->api->respond_error('Players already have stamps, game results or suggestions in this region.', 409);
+        }
         $this->Region_model->remove($row['id']);
         $this->api->respond(['message' => 'Region deleted']);
     }
