@@ -25,7 +25,7 @@ php lava serve
 2. `php lava serve` starts the API at `http://127.0.0.1:3000`. Use `php lava serve --port=8080` for another port.
 3. `php lava jwt:generate` can create `JWT_SECRET` and `REFRESH_TOKEN_KEY` and save them to `.env`.
 
-These are the variable names the code reads (compare with `.env.example`, not verified against it):
+These are the 22 variable names the code reads. `.env.example` lists the same names plus `APP_NAME`, which the code does not read through `getenv()`:
 
 - **App and tokens:** `APP_ENV`, `APP_KEY`, `JWT_SECRET`, `REFRESH_TOKEN_KEY`
 - **Database:** `DB_DRIVER`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_CHARSET`, `DB_PREFIX`, `DB_SSL_CA`
