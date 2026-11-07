@@ -139,7 +139,7 @@ class Cloudinary_lib
     /**
      * Log an SDK error and return a short error for the caller.
      *
-     * TODO: switch error_log() to Api_logger::log() after PR #8 merges (DEC-25).
+     * Cloudinary calls are not written to api_logs.
      */
     private function fail($method, \Throwable $e, $message)
     {
