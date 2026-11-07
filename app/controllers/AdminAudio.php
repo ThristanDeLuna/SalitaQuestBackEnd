@@ -137,7 +137,6 @@ class AdminAudio extends ApiController
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime  = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
         if ( ! in_array($mime, self::MIMES, TRUE)) {
             return 'File type not allowed';
         }
