@@ -8,8 +8,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  *   POST   /api/admin/audio/{word_id}    Create/Update upload the audio, or replace it
  *   DELETE /api/admin/audio/{word_id}    Delete        remove the audio
  *
- * Thin controller (criterion 3): SQL lives in Audio_model (criteria 4 and 5),
- * Cloudinary calls live in Cloudinary_lib (criterion 6). Design: DESIGN_C_admin_audio.md
+ * Thin controller (criterion 10): SQL lives in Audio_model (criteria 4 and 5),
+ * Cloudinary calls live in Cloudinary_lib (criterion 6). The design note lives in the Claude Project, not in this repo.
  */
 class AdminAudio extends ApiController
 {
@@ -112,7 +112,7 @@ class AdminAudio extends ApiController
     /**
      * Check one uploaded file. Returns an error message, or NULL when the file is fine.
      * (We do not use the framework's Upload library: it moves the file to local disk,
-     * and our files go to Cloudinary. DEC-86 exception, see DESIGN_C_admin_audio.md.)
+     * and our files go to Cloudinary. DEC-86 exception; the design note lives in the Claude Project, not in this repo.)
      */
     private function check_file($file)
     {
