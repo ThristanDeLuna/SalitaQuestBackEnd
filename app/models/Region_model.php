@@ -127,4 +127,19 @@ class Region_model extends Model
     {
         return $this->delete_where(['id' => $id]);
     }
+        /**
+     * Read: how many rows in other tables still use this region code?
+     * There are no foreign keys, so the controller uses this to refuse a delete
+     * that would leave orphan rows. (Criterion 4 Query Builder)
+     *
+     * @return array ['stamps' => n, 'attempts' => n, 'submissions' => n]
+     */
+    public function count_dependents($code)
+    {
+        return [
+            'stamps'      => (int) $this->db->table('stamps')->where('region_code', $code)->count(),
+            'attempts'    => (int) $this->db->table('game_attempts')->where('region_code', $code)->count(),
+            'submissions' => (int) $this->db->table('submissions')->where('region_code', $code)->count(),
+        ];
+    }
 }
