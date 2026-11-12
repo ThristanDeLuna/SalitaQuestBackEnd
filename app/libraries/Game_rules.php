@@ -141,8 +141,8 @@ class Game_rules
     /**
      * Stars = the best score per game per region, added up (DEC-59).
      * Replaying a game only raises stars if the new score beats the old best,
-     * so repeat plays cannot farm points. Maximum is 270 with 3 regions
-     * (3 x (40 + 50)).
+     * so repeat plays cannot farm points. Maximum is 90 per configured region
+     * (40 + 50), so 90 x the number of regions.
      *
      * @param array $attempts Rows for ONE user, all regions, each with
      *                        'game', 'region_code' and 'score'.
