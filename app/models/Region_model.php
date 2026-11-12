@@ -74,6 +74,31 @@ class Region_model extends Model
     }
 
     /**
+     * Read: which of these codes have a row in the regions table? Used by the games
+     * so a configured code with no row is ignored. One query; the result keeps the
+     * order of $codes. (Criterion 4 Query Builder: in)
+     *
+     * @param array $codes region codes, for example the game_regions config
+     * @return array the codes that exist, in the order given (empty when none)
+     */
+    public function existing_codes(array $codes)
+    {
+        if ($codes === []) { return []; }   // in() adds no filter for an empty list
+
+        $rows  = $this->db->table($this->table)
+                          ->select('code')
+                          ->in('code', $codes)
+                          ->get_all() ?: [];
+        $found = array_column($rows, 'code');
+
+        // MySQL compares codes with its collation, so match the same way in PHP (case only)
+        $lower = array_map('strtolower', $found);
+        return array_values(array_filter($codes, function ($c) use ($lower) {
+            return in_array(strtolower($c), $lower, true);
+        }));
+    }
+
+    /**
      * Read: one region by its code, for example 'cebuano'. (Criterion 4, via built-in find_by())
      *
      * @return array|false the row, or FALSE when the code does not exist

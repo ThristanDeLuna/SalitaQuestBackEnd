@@ -9,6 +9,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  */
 class Games extends ApiController   // no require: MY_ApiController is loaded at boot (DEC-87)
 {
+    private $active_regions = null;   // cache for active_regions(), one request
+
     public function __construct()
     {
         parent::__construct();                          // loads db and the Api class
@@ -17,6 +19,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         // Load everything here, BEFORE any transaction: each model's constructor
         // calls call->database(), which opens a new connection and makes it the
         // shared one. Loading a model inside a transaction would leave it behind.
+        $this->call->model('Region_model');
         $this->call->model('Word_model');
         $this->call->model('Audio_model');
         $this->call->model('Game_attempt_model');
@@ -240,7 +243,8 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
 
         // One entry per region, in the configured order
         $regions = [];
-        foreach (config_item('game_regions') as $code) {
+        $codes   = $this->active_regions();
+        foreach ($codes as $code) {
             $has_stamp = in_array($code, $stamped, true);
             $can_play  = $this->game_rules->can_play_region($code, $state['started_regions'], $state['stamp_count'],
                                                            $state['ready_regions'], $state['skip_lock']);
@@ -283,7 +287,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
 
         $this->api->respond([
             'stars'        => $this->game_rules->stars_for($state['attempts']),
-            'max_stars'    => count(config_item('game_regions'))
+            'max_stars'    => count($codes)
                             * (Game_rules::MATCHING_PAIRS + Game_rules::LISTENING_QUESTIONS) * Game_rules::POINTS_PER_CORRECT,
             'streak'       => [
                 'current'          => $this->game_rules->streak_for_display($row ? $row['last_active_date'] : null,
@@ -353,7 +357,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
     // 404 unknown region, 403 coming_soon or locked; otherwise the region state
     private function open_region($region, array $user)
     {
-        if (!in_array($region, config_item('game_regions'), true)) {
+        if (!in_array($region, $this->active_regions(), true)) {
             $this->api->respond_error('Unknown region', 404);
         }
         $state = $this->region_state($user);
@@ -368,13 +372,24 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         return $state;
     }
 
+    // The configured region codes that also have a row in the regions table, in config order.
+    // A configured code with no row is treated as not there: not in the summary, not in
+    // max_stars, and the game endpoints answer 404 Unknown region. One query per request.
+    private function active_regions()
+    {
+        if ($this->active_regions === null) {
+            $this->active_regions = $this->Region_model->existing_codes(config_item('game_regions'));
+        }
+        return $this->active_regions;
+    }
+
     // Everything can_play_region() needs, plus the words and audio we already read
     private function region_state(array $user)
     {
         $words = [];
         $audio = [];
         $ready = [];
-        foreach (config_item('game_regions') as $code) {
+        foreach ($this->active_regions() as $code) {
             $words[$code] = $this->Word_model->for_region($code);
             $rows         = $words[$code] ? $this->Audio_model->for_words(array_column($words[$code], 'id')) : [];
             $audio[$code] = array_column($rows, 'url', 'word_id');          // word_id => url
