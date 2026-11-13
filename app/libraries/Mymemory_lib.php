@@ -3,7 +3,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /**
  * Mymemory_lib (Member D): asks MyMemory for a SUGGESTED English meaning of a
- * word written in one of our three languages.
+ * word written in one of our supported languages (see LANG below).
  *
  * Load it in a controller:  $this->call->library('mymemory_lib');
  * Use it:                   $text = $this->mymemory_lib->suggest('salamat', 'cebuano');
@@ -17,7 +17,8 @@ class Mymemory_lib
 {
     // Our region code => MyMemory language code (RFC 3066 / ISO).
     // Checked on Oct 24 with tools/mymemory_check.php: MyMemory accepts tl, ceb and hil.
-    const LANG = ['tagalog' => 'tl', 'cebuano' => 'ceb', 'hiligaynon' => 'hil'];
+    // Checked on Nov 12 in the browser (one word each): MyMemory also answers for pam and ilo.
+    const LANG = ['tagalog' => 'tl', 'cebuano' => 'ceb', 'hiligaynon' => 'hil', 'kapampangan' => 'pam', 'ilocano' => 'ilo'];
 
     private $_lava;
     private $url;      // endpoint, from app/config/mymemory.php
