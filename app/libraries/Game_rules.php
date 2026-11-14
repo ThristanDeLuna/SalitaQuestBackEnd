@@ -255,6 +255,33 @@ class Game_rules
     }
 
     /**
+     * The "top" list the leaderboard sends: the first $size ranked rows, each with
+     * ONLY rank, name, stars and you. "you" is true on the caller's own row and
+     * false on every other row, so the app can highlight the right row even when
+     * ranks tie. user_id is used for the match but never returned.
+     * A caller outside the top list, or not ranked at all (an admin, or no stars
+     * yet), gets no row with you = true.
+     *
+     * @param array    $ranked    Rows from rank_players() ('user_id', 'name', 'stars', 'rank').
+     * @param int|null $caller_id The logged-in user's id.
+     * @param int      $size      How many rows to keep (config leaderboard_size).
+     * @return array list of ['rank' => int, 'name' => string, 'stars' => int, 'you' => bool]
+     */
+    public function leaderboard_top(array $ranked, $caller_id, $size)
+    {
+        $top = [];
+        foreach (array_slice($ranked, 0, max(0, (int) $size)) as $r) {
+            $top[] = [
+                'rank'  => (int) $r['rank'],
+                'name'  => (string) $r['name'],
+                'stars' => (int) $r['stars'],
+                'you'   => $caller_id !== null && (int) $r['user_id'] === (int) $caller_id,
+            ];
+        }
+        return $top;
+    }
+
+    /**
      * The best attempt per region and game, for the Passport (DEC-59).
      * Same "best score" idea as stars_for(), but kept per region with its medal.
      * On a tie the first attempt seen is kept.

@@ -422,5 +422,22 @@ check('same name and stars: lower user_id first (fixed order)', array_column($ru
 check('everyone at zero -> empty',            $rules->rank_players([['user_id' => 1, 'name' => 'A', 'stars' => 0]]), []);
 check('empty input -> empty',                 $rules->rank_players([]), []);
 
+echo "leaderboard_top (only rank, name, stars, you)\n";
+// $ranked from above: Ana R. (1) 90, Ben T. (2) 50, Cris B. (3) 50, Dan C. (5) 30
+$top = $rules->leaderboard_top($ranked, 3, 10);   // caller = Cris B., tied at rank 2
+check('caller in a tie: you=true on own row only', array_column($top, 'you', 'name'),
+      ['Ana R.' => false, 'Ben T.' => false, 'Cris B.' => true, 'Dan C.' => false]);
+check('the other tied player has you=false',    [$top[1]['name'], $top[1]['rank'], $top[1]['you']], ['Ben T.', 2, false]);
+check('row has ONLY rank, name, stars, you (no user_id)', $top[2], ['rank' => 2, 'name' => 'Cris B.', 'stars' => 50, 'you' => true]);
+check('caller outside the top (size 2): no you=true row', in_array(true, array_column($rules->leaderboard_top($ranked, 3, 2), 'you'), true), false);
+$many = [];
+for ($i = 1; $i <= 12; $i++) { $many[] = ['user_id' => $i, 'name' => "P$i", 'stars' => 100 - $i]; }
+$top10 = $rules->leaderboard_top($rules->rank_players($many), 12, 10);   // caller is 12th
+check('caller ranked 12th, top 10: 10 rows, no you=true', [count($top10), in_array(true, array_column($top10, 'you'), true)], [10, false]);
+check('admin caller (not ranked): no you=true row', in_array(true, array_column($rules->leaderboard_top($ranked, 99, 10), 'you'), true), false);
+check('null caller: no you=true row',           in_array(true, array_column($rules->leaderboard_top($ranked, null, 10), 'you'), true), false);
+check('string caller id (from a token) still matches', $rules->leaderboard_top($ranked, '1', 10)[0]['you'], true);
+check('empty ranking -> empty top',             $rules->leaderboard_top([], 1, 10), []);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);

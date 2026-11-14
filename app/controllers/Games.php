@@ -305,7 +305,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
 
     // GET /api/leaderboard : the top players by stars, and the caller's own place.
     // Reads only. Learners and contributors are ranked; admins are not (me = null).
-    // Only rank, short name and stars are sent: no user id, no email, no full name.
+    // Only rank, short name, stars and "you" are sent: no user id, no email, no full name.
     public function leaderboard()
     {
         $user = $this->require_login();                 // any role
@@ -324,10 +324,8 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         }
         $ranked = $this->game_rules->rank_players($rows);
 
-        $top = [];
-        foreach (array_slice($ranked, 0, (int) config_item('leaderboard_size')) as $r) {
-            $top[] = ['rank' => $r['rank'], 'name' => $r['name'], 'stars' => $r['stars']];
-        }
+        // Only rank, name, stars and "you" (true on the caller's own row)
+        $top = $this->game_rules->leaderboard_top($ranked, $user['id'], config_item('leaderboard_size'));
 
         $me = null;                                     // admins are not on the board
         if ($user['role'] !== 'admin') {
