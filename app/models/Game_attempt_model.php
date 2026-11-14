@@ -68,6 +68,23 @@ class Game_attempt_model extends Model
     }
 
     /**
+     * Read: the attempts of many users, for the leaderboard. (Criterion 4 Query Builder)
+     * Only the columns Game_rules::stars_by_user() needs.
+     *
+     * @param array $user_ids ids from User_model::players()
+     * @return array list of rows with user_id, game, region_code, score (empty when none)
+     */
+    public function for_ranking(array $user_ids)
+    {
+        if ($user_ids === []) { return []; }   // in() adds no filter for an empty list
+
+        return $this->db->table($this->table)
+                        ->select('user_id, game, region_code, score')
+                        ->in('user_id', $user_ids)
+                        ->get_all() ?: [];
+    }
+
+    /**
      * Read: the attempts of one user on one Manila calendar day. (Criterion 4 Query Builder)
      *
      * created_at is written in UTC by create(), but "today" for the player is a

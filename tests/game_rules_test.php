@@ -373,5 +373,54 @@ check('string scores (database rows) work', $rules->stars_gained([
     ['game' => 'matching', 'region_code' => 'tagalog', 'score' => '30', 'max_score' => '40'],
 ], 'tagalog', 'matching', '40'), 10);
 
+echo "short_name (leaderboard: first name + last initial)\n";
+check('"Ana Reyes" -> "Ana R."',               $rules->short_name('Ana Reyes'), 'Ana R.');
+check('"Ana Maria Reyes" -> "Ana R." (last word)', $rules->short_name('Ana Maria Reyes'), 'Ana R.');
+check('"Ana" -> "Ana"',                        $rules->short_name('Ana'), 'Ana');
+check('empty -> "Player"',                     $rules->short_name(''), 'Player');
+check('only spaces -> "Player"',               $rules->short_name("   \t "), 'Player');
+check('null -> "Player"',                      $rules->short_name(null), 'Player');
+check('extra spaces trimmed and collapsed',    $rules->short_name('  Ana    Maria   Reyes  '), 'Ana R.');
+check('lower-case last name: initial upper',   $rules->short_name('Ana reyes'), 'Ana R.');
+check('multibyte initial: "Jose Ñañez" -> "Jose Ñ."', $rules->short_name('Jose Ñañez'), 'Jose Ñ.');
+
+echo "stars_by_user (stars_for() per user)\n";
+$rows = [
+    ['user_id' => 1, 'game' => 'matching',  'region_code' => 'tagalog', 'score' => 20],
+    ['user_id' => 1, 'game' => 'matching',  'region_code' => 'tagalog', 'score' => 40], // best kept
+    ['user_id' => 1, 'game' => 'matching',  'region_code' => 'tagalog', 'score' => 30],
+    ['user_id' => 1, 'game' => 'listening', 'region_code' => 'tagalog', 'score' => 30],
+    ['user_id' => 1, 'game' => 'matching',  'region_code' => 'cebuano', 'score' => 10], // other region adds
+    ['user_id' => 2, 'game' => 'listening', 'region_code' => 'cebuano', 'score' => 50],
+    ['user_id' => 2, 'game' => 'flashcards','region_code' => 'cebuano', 'score' => 99], // other game ignored
+    ['user_id' => '2', 'game' => 'listening', 'region_code' => 'cebuano', 'score' => '40'], // string row, lower
+];
+check('two users: best per game and region, others ignored', $rules->stars_by_user($rows), [1 => 80, 2 => 50]);
+check('same total as stars_for() on one user',  $rules->stars_by_user($rows)[1],
+      $rules->stars_for(array_filter($rows, function ($r) { return (int) $r['user_id'] === 1; })));
+check('no rows -> empty',                       $rules->stars_by_user([]), []);
+
+echo "rank_players (competition ranking 1, 2, 2, 4)\n";
+$ranked = $rules->rank_players([
+    ['user_id' => 5, 'name' => 'Dan C.', 'stars' => 30],
+    ['user_id' => 1, 'name' => 'Ana R.', 'stars' => 90],
+    ['user_id' => 3, 'name' => 'Cris B.', 'stars' => 50],
+    ['user_id' => 2, 'name' => 'Ben T.', 'stars' => 50],
+    ['user_id' => 4, 'name' => 'Eve Z.', 'stars' => 0],   // no stars: dropped
+]);
+check('ties share a rank: 1, 2, 2, 4',        array_column($ranked, 'rank'), [1, 2, 2, 4]);
+check('order: stars desc, then name A to Z',  array_column($ranked, 'name'), ['Ana R.', 'Ben T.', 'Cris B.', 'Dan C.']);
+check('zero-star player dropped',             in_array(4, array_column($ranked, 'user_id'), true), false);
+check('row keeps its fields, rank added',     $ranked[0], ['user_id' => 1, 'name' => 'Ana R.', 'stars' => 90, 'rank' => 1]);
+check('three-way tie then next: 1, 1, 1, 4',  array_column($rules->rank_players([
+    ['user_id' => 1, 'name' => 'A', 'stars' => 10], ['user_id' => 2, 'name' => 'B', 'stars' => 10],
+    ['user_id' => 3, 'name' => 'C', 'stars' => 10], ['user_id' => 4, 'name' => 'D', 'stars' => 5],
+]), 'rank'), [1, 1, 1, 4]);
+check('same name and stars: lower user_id first (fixed order)', array_column($rules->rank_players([
+    ['user_id' => 9, 'name' => 'Ana R.', 'stars' => 10], ['user_id' => 3, 'name' => 'Ana R.', 'stars' => 10],
+]), 'user_id'), [3, 9]);
+check('everyone at zero -> empty',            $rules->rank_players([['user_id' => 1, 'name' => 'A', 'stars' => 0]]), []);
+check('empty input -> empty',                 $rules->rank_players([]), []);
+
 echo "\n$passed passed, $failed failed\n";
 exit($failed > 0 ? 1 : 0);

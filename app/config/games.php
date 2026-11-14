@@ -14,3 +14,8 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 // A code with no row in the regions table is ignored by the games (Games::active_regions()).
 // For now the list lives here; B's regions endpoints will own it later.
 $config['game_regions'] = ['tagalog', 'cebuano', 'hiligaynon', 'kapampangan', 'ilocano'];
+
+// How many players GET /api/leaderboard lists in "top" (Games::leaderboard()).
+// The caller's own rank is sent separately in "me", so it can be shown even
+// when they are outside the top list.
+$config['leaderboard_size'] = 10;

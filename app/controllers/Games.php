@@ -3,7 +3,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /**
  * Member C: the Matching and Listening games (get a round, submit answers)
- * and the Passport summary (GET /api/me/summary).
+ * the Passport summary (GET /api/me/summary) and the leaderboard (GET /api/leaderboard).
  * Thin controller: it checks the request, calls the models and libraries, and answers.
  * The rules live in Game_rules and Round_builder; all queries live in the models.
  */
@@ -14,7 +14,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
     public function __construct()
     {
         parent::__construct();                          // loads db and the Api class
-        $this->config->load('games');                   // app/config/games.php: game_regions
+        $this->config->load('games');                   // app/config/games.php: game_regions, leaderboard_size
 
         // Load everything here, BEFORE any transaction: each model's constructor
         // calls call->database(), which opens a new connection and makes it the
@@ -25,6 +25,7 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
         $this->call->model('Game_attempt_model');
         $this->call->model('Stamp_model');
         $this->call->model('Streak_model');
+        $this->call->model('User_model');               // leaderboard: player names
         $this->call->library('game_rules');
         $this->call->library('round_builder');
     }
@@ -300,6 +301,46 @@ class Games extends ApiController   // no require: MY_ApiController is loaded at
             'badges'       => $badges,
             'quests_today' => $this->game_rules->quests_for($this->Game_attempt_model->today_for_user($user['id'], $today)),
         ]);
+    }
+
+    // GET /api/leaderboard : the top players by stars, and the caller's own place.
+    // Reads only. Learners and contributors are ranked; admins are not (me = null).
+    // Only rank, short name and stars are sent: no user id, no email, no full name.
+    public function leaderboard()
+    {
+        $user = $this->require_login();                 // any role
+
+        $players  = $this->User_model->players();
+        $attempts = $this->Game_attempt_model->for_ranking(array_column($players, 'id'));
+        $stars    = $this->game_rules->stars_by_user($attempts);
+
+        $rows = [];
+        foreach ($players as $p) {
+            $rows[] = [
+                'user_id' => (int) $p['id'],
+                'name'    => $this->game_rules->short_name($p['name']),
+                'stars'   => $stars[(int) $p['id']] ?? 0,
+            ];
+        }
+        $ranked = $this->game_rules->rank_players($rows);
+
+        $top = [];
+        foreach (array_slice($ranked, 0, (int) config_item('leaderboard_size')) as $r) {
+            $top[] = ['rank' => $r['rank'], 'name' => $r['name'], 'stars' => $r['stars']];
+        }
+
+        $me = null;                                     // admins are not on the board
+        if ($user['role'] !== 'admin') {
+            $me = ['rank' => null, 'stars' => 0];       // no stars yet: not ranked
+            foreach ($ranked as $r) {
+                if ($r['user_id'] === $user['id']) {
+                    $me = ['rank' => $r['rank'], 'stars' => $r['stars']];
+                    break;
+                }
+            }
+        }
+
+        $this->api->respond(['top' => $top, 'me' => $me]);
     }
 
     // Save one finished game: the attempt, the stamp if it is earned now, and the streak.

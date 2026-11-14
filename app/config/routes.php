@@ -72,6 +72,7 @@ $router->post('/api/games/matching/{region}/submit', 'Games::matching_submit');
 $router->get('/api/games/listening/{region}', 'Games::listening_round');
 $router->post('/api/games/listening/{region}/submit', 'Games::listening_submit');
 $router->get('/api/me/summary', 'Games::summary');
+$router->get('/api/leaderboard', 'Games::leaderboard');
 // ---- end Member C ----
 
 $router->get('db/migrate',  'MigrationController::migrate');

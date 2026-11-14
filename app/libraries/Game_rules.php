@@ -168,6 +168,93 @@ class Game_rules
     }
 
     /**
+     * Stars for many players at once, for the leaderboard.
+     * Groups the rows by user_id and calls stars_for() on each group, so there is
+     * only ONE copy of the scoring rule (best score per game per region, added up).
+     *
+     * @param array $attempts Rows for any number of users, each with 'user_id',
+     *                        'game', 'region_code' and 'score'.
+     * @return array user_id (int) => stars (int). Only users that appear in the rows.
+     */
+    public function stars_by_user(array $attempts)
+    {
+        $groups = []; // user_id => that user's rows
+        foreach ($attempts as $a) {
+            $groups[(int) $a['user_id']][] = $a;
+        }
+
+        $stars = [];
+        foreach ($groups as $user_id => $rows) {
+            $stars[$user_id] = $this->stars_for($rows);
+        }
+        return $stars;
+    }
+
+    /**
+     * The short public name shown on the leaderboard: first name plus the initial
+     * of the last name, so the full name is never sent to other players.
+     *   'Ana Reyes'       -> 'Ana R.'
+     *   'Ana Maria Reyes' -> 'Ana R.'   (first word + initial of the LAST word)
+     *   'Ana'             -> 'Ana'
+     *   '' or '   '       -> 'Player'
+     * Extra spaces are trimmed and collapsed. The initial uses mb_ functions when
+     * they are installed, so names like 'Ñañez' give 'Ñ.' and not half a character.
+     *
+     * @param string|null $full_name
+     * @return string
+     */
+    public function short_name($full_name)
+    {
+        $words = preg_split('/\s+/u', trim((string) $full_name), -1, PREG_SPLIT_NO_EMPTY);
+        if (!$words) {
+            return 'Player'; // empty, only spaces, or not valid UTF-8
+        }
+        if (count($words) === 1) {
+            return $words[0];
+        }
+
+        $last    = $words[count($words) - 1];
+        $initial = function_exists('mb_substr') ? mb_substr($last, 0, 1, 'UTF-8') : substr($last, 0, 1);
+        $initial = function_exists('mb_strtoupper') ? mb_strtoupper($initial, 'UTF-8') : strtoupper($initial);
+        return $words[0] . ' ' . $initial . '.';
+    }
+
+    /**
+     * Rank the players for the leaderboard.
+     *   - players with fewer than 1 star are left out (they have not scored yet)
+     *   - order: stars, highest first; on a tie, name A to Z (case ignored); then user_id, so
+     *     the order is always the same for the same data
+     *   - standard competition ranking: tied stars share a rank and the next
+     *     rank skips (1, 2, 2, 4)
+     *
+     * @param array $players Rows with 'user_id', 'name' and 'stars'.
+     * @return array The same rows, ranked, each with 'rank' (int) added.
+     */
+    public function rank_players(array $players)
+    {
+        $list = array_values(array_filter($players, function ($p) {
+            return (int) $p['stars'] >= 1;
+        }));
+
+        usort($list, function ($a, $b) {
+            return ((int) $b['stars'] <=> (int) $a['stars'])                  // more stars first
+                ?: strcasecmp((string) $a['name'], (string) $b['name'])      // then name A to Z, any case
+                ?: ((int) $a['user_id'] <=> (int) $b['user_id']);            // then id: a fixed order
+        });
+
+        $rank       = 0;
+        $prev_stars = null;
+        foreach ($list as $i => $p) {
+            if ((int) $p['stars'] !== $prev_stars) {
+                $rank       = $i + 1;          // a new score starts at its position
+                $prev_stars = (int) $p['stars'];
+            }
+            $list[$i]['rank'] = $rank;         // a tie keeps the rank above it
+        }
+        return $list;
+    }
+
+    /**
      * The best attempt per region and game, for the Passport (DEC-59).
      * Same "best score" idea as stars_for(), but kept per region with its medal.
      * On a tie the first attempt seen is kept.
