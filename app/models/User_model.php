@@ -47,6 +47,20 @@ class User_model extends Model
                         ->where('email', $email)->where_null('google_id')->get();
     }
 
+    /**
+     * Read: everyone who can appear on the leaderboard. (Criterion 4 Query Builder)
+     * Learners and contributors only, so admins are left out. Only id and name:
+     * never email or google_id.
+     *
+     * @return array list of ['id' => ..., 'name' => ...] (empty when none)
+     */
+    public function players()
+    {
+        return $this->db->table($this->table)->select('id, name')
+                        ->in('role', ['learner', 'contributor'])
+                        ->get_all() ?: [];
+    }
+
     /** Read: is this email already used? (built-in exists()) */
     public function email_taken($email)
     {
